@@ -1,3 +1,4 @@
+/** @OnlyCurrentDoc */
 /**
  * Ders Defteri köprüsü
  *
