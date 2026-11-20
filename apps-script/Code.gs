@@ -17,6 +17,13 @@ var STAT = {planned: 'Planlı', done: 'Yapıldı', missed: 'İptal'};
 var REP = {'1': 'Her hafta', '2': 'İki haftada bir', '0': 'Tek seferlik'};
 var SEED = {students: [], lessons: [], theme: 'tablo'};
 
+/** Elle çalıştırmak için: Apps Script'te üstteki listeden "kur" seç ve Çalıştır'a bas. Sayfaları oluşturur ve başlangıç verisini yazar. */
+function kur() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  ensure_(ss);
+  read_(ss);
+}
+
 function doPost(e) {
   var b = {};
   try { b = JSON.parse(e.postData.contents); } catch (x) {}
