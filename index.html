@@ -122,21 +122,20 @@ main{flex:1;overflow-y:auto}
 .mnav button.sq{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:20px}
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .cal .wd{font-size:11px;font-weight:700;color:var(--muted);text-align:center;text-transform:uppercase;padding:2px 0}
-.cell{min-height:58px;border-radius:10px;background:var(--surface);border:1px solid var(--line);padding:5px 4px;display:flex;flex-direction:column;align-items:stretch;gap:0;text-align:left;min-width:0;overflow:hidden}
+.cell{min-height:80px;border-radius:10px;background:var(--surface);border:1px solid var(--line);padding:4px 3px;display:flex;flex-direction:column;align-items:stretch;gap:0;text-align:left;min-width:0;overflow:hidden}
 .cell.off{background:transparent;border-color:transparent}
 .cell.sel{border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent)}
 .cell .dn{font-size:13px;font-weight:600;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:99px;margin-bottom:2px}
 .cell.today .dn{background:var(--accent);color:var(--accent-ink)}
-.ch{display:block;height:6px;border-radius:3px;margin-top:3px;background:var(--cc);border:1.5px solid var(--cc);overflow:hidden;color:var(--bg)}
+.ch{display:block;border-radius:4px;margin-top:3px;background:var(--cc);border:1px solid var(--cc);overflow:hidden;color:var(--bg);padding:0 2px;font-size:8.5px;line-height:13px;font-weight:600;letter-spacing:-.1px;white-space:nowrap;text-overflow:ellipsis}
 .ch.planned{background:transparent;color:var(--ink)}
 .ch.missed{background:transparent;opacity:.4;color:var(--ink);text-decoration:line-through}
-.ch .cn{display:none}
+.ch .cn{display:inline}
 .more{font-size:10px;color:var(--muted);margin-top:2px}
 .c1{--cc:var(--c1)}.c2{--cc:var(--c2)}.c3{--cc:var(--c3)}.c4{--cc:var(--c4)}
 @media (min-width:640px){
   .cell{min-height:96px;padding:6px}
-  .ch{height:auto;padding:1px 6px;font-size:11px;font-weight:600;white-space:nowrap;text-overflow:ellipsis}
-  .ch .cn{display:inline}
+  .ch{padding:1px 6px;font-size:11px;line-height:1.3}
 }
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
 .legend span{display:inline-flex;align-items:center;gap:6px}
@@ -144,6 +143,8 @@ main{flex:1;overflow-y:auto}
 .sw2.planned{background:transparent;border:1.5px solid var(--muted)}
 .dotl{display:inline-block;width:7px;height:7px;border-radius:99px;background:var(--warn)}
 .segc{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.link{font-weight:600;text-align:left;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px;overflow-wrap:anywhere}
+.chip.edit{border:1px solid var(--line);color:var(--muted);background:transparent}
 .tag.warn{background:var(--warn-soft);color:var(--warn)}
 .segc button{min-height:44px;border-radius:10px;border:1px solid var(--line);font-weight:600;font-size:13px;color:var(--muted);padding:0 2px}
 .segc button.on.done{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
@@ -347,6 +348,11 @@ function schedule(s){
   if(s.day<0||s.interval===0)return 'Tek seferlik'+(s.time?' · '+s.time:'');
   return (s.interval===2?'İki haftada bir ':'Her ')+DAYS[s.day]+(s.time?' '+s.time:'');
 }
+function shortName(n){
+  var w=n.split(' '),first=w[0].toLowerCase(),dup=state.students.filter(function(s){return s.name.split(' ')[0].toLowerCase()===first}).length>1;
+  if(dup&&w.length>1)return w[0].slice(0,3)+' '+w[w.length-1];
+  return w[0];
+}
 var ltime=function(l){var s=stById(l.sid);return l.time||(s&&s.time)||''};
 var shortD=function(s){var d=parse(s);return d.getDate()+' '+MONTHS[d.getMonth()].slice(0,3)};
 function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(function(){t.classList.remove('on')},2400)}
@@ -433,9 +439,9 @@ function dayPanel(){
   if(!ls.length)html+='<p class="empty">Bu gün için ders yok.</p>';
   ls.forEach(function(l){
     var s=stById(l.sid);
-    html+='<div class="card '+clsOf(l)+'"><div class="row"><span class="dot-c"></span><div class="grow"><div class="t1">'+esc(nameOf(l))+(l.status==='missed'?'<span class="tag warn">İptal</span>':'')+(l.postponedFrom?'<span class="tag warn">Ertelendi</span>':'')+'</div><div class="t2 num">'+esc(ltime(l)||'Saat yok')+' · '+money(l.fee)+(l.postponedFrom?' · '+shortD(l.postponedFrom)+' tarihinden ertelendi':'')+'</div></div>'+(isDone(l)?chipPaid(l):'')+'</div>'+seg(l)+
+    html+='<div class="card '+clsOf(l)+'"><div class="row"><span class="dot-c"></span><div class="grow"><div class="t1"><button class="link" data-act="editStudent" data-id="'+l.sid+'">'+esc(nameOf(l))+'</button>'+(l.status==='missed'?'<span class="tag warn">İptal</span>':'')+(l.postponedFrom?'<span class="tag warn">Ertelendi</span>':'')+'</div><div class="t2 num">'+esc(ltime(l)||'Saat yok')+' · '+money(l.fee)+(l.postponedFrom?' · '+shortD(l.postponedFrom)+' tarihinden ertelendi':'')+'</div></div>'+(isDone(l)?chipPaid(l):'')+'</div>'+seg(l)+
       ((l.topic||l.note)?'<div class="stack" style="gap:6px">'+(l.topic?'<div class="t1">'+esc(l.topic)+'</div>':'')+(l.note?'<div class="note">'+esc(l.note)+'</div>':'')+'</div>':'')+
-      '<button class="btn ghost sm" data-act="editLesson" data-id="'+l.id+'">'+(isDone(l)?(l.topic||l.note?'Konu ve yorumu düzenle':'Konu ve yorum yaz'):'Düzenle / taşı')+'</button></div>';
+      '<div class="actions"><button class="btn ghost sm" data-act="editLesson" data-id="'+l.id+'">'+(isDone(l)?(l.topic||l.note?'Dersi düzenle':'Konu ve yorum yaz'):'Dersi düzenle / taşı')+'</button><button class="btn ghost sm" data-act="editStudent" data-id="'+l.sid+'">Öğrenciyi düzenle</button></div></div>';
   });
   html+='<button class="btn ghost" data-act="addLesson" data-v="'+ui.sel+'">Bu güne ekstra ders ekle</button></section>';
   return html;
@@ -449,8 +455,8 @@ function viewCal(){
   for(var d=1;d<=dim;d++){
     var date=key+'-'+pad(d),ls=lessonsOn(date);
     cells+='<button class="cell'+(date===ui.sel?' sel':'')+(date===today?' today':'')+'" data-act="selDay" data-v="'+date+'" aria-label="'+d+' '+MONTHS[m-1]+(ls.length?', '+ls.length+' ders':'')+'"><span class="dn num">'+d+'</span>'+
-      ls.slice(0,4).map(function(l){return '<span class="ch '+clsOf(l)+' '+l.status+'"><span class="cn">'+esc(nameOf(l).split(' ')[0].slice(0,9))+'</span></span>'}).join('')+
-      (ls.length>4?'<span class="more">+'+(ls.length-4)+'</span>':'')+'</button>';
+      ls.slice(0,3).map(function(l){return '<span class="ch '+clsOf(l)+' '+l.status+'"><span class="cn">'+esc(shortName(nameOf(l)))+'</span></span>'}).join('')+
+      (ls.length>3?'<span class="more">+'+(ls.length-3)+' ders</span>':'')+'</button>';
   }
   return '<div class="mnav"><button class="sq" data-act="calPrev" aria-label="Önceki ay">‹</button><span class="ml">'+monthLabel(key)+'</span><button class="sq" data-act="calNext" aria-label="Sonraki ay">›</button></div>'+
     '<div class="sub num"><span><b>'+nd+'</b> yapıldı</span><span><b>'+np+'</b> planlı</span><span><b>'+nm+'</b> iptal</span><span>kazanç <b>'+money(income(ml))+'</b></span><button class="chip paid" data-act="calToday">Bugün</button></div>'+
@@ -509,7 +515,7 @@ function viewChart(){
     }).join('')+'</section>'+
     '<section class="stack"><h2>'+monthLabel(key)+'</h2><div class="hero"><div class="big num" style="font-size:34px">'+money(total)+'</div><div class="sub num"><span><b>'+doneOf(ml).length+'</b> ders</span><span><b>'+money(total-un)+'</b> alındı</span><span><b>'+money(un)+'</b> bekliyor</span><span><b>'+money(plannedSum(key))+'</b> planlı</span></div><div class="meter"><i style="width:'+pct+'%"></i></div></div>'+
     (ids.length?'<div class="card">'+ids.map(function(id){var s=stById(id),t=sum(by[id]);
-      return '<div class="bar '+(s?CATCLS[s.cat]:'c4')+'"><div class="row"><span class="t1">'+esc(s?s.name:'Silinmiş kayıt')+'</span><span class="amt num">'+money(t)+'</span></div><div class="track"><i style="width:'+Math.round(t/smx*100)+'%"></i></div><span class="t2">'+by[id].length+' ders</span></div>'}).join('')+'</div>':'<p class="empty">Bu ay yapılan ders yok.</p>')+
+      return '<div class="bar '+(s?CATCLS[s.cat]:'c4')+'"><div class="row"><button class="t1 link" data-act="editStudent" data-id="'+id+'">'+esc(s?s.name:'Silinmiş kayıt')+' ✎</button><span class="amt num">'+money(t)+'</span></div><div class="track"><i style="width:'+Math.round(t/smx*100)+'%"></i></div><span class="t2">'+by[id].length+' ders</span></div>'}).join('')+'</div>':'<p class="empty">Bu ay yapılan ders yok.</p>')+
     '<button class="btn ghost block" data-act="csv">Bu ayı Excel için dışa aktar</button></section>';
   return html;
 }
@@ -556,10 +562,10 @@ function viewPay(){
     }).join('')+'</section>'+
     '<section class="stack"><h2>'+monthLabel(key)+' ödemeleri · '+money(sum(ml))+'</h2>'+(ml.length?ml.map(function(l){
       var d=parse(l.paidAt);
-      return '<button class="lrow" data-act="editLesson" data-id="'+l.id+'"><div class="date num">'+d.getDate()+'<small>'+MONTHS[d.getMonth()].slice(0,3)+'</small></div><div class="grow"><div class="t1">'+esc(nameOf(l))+'</div><div class="t2">'+esc(trDate(l.date)+' dersi'+(l.topic?' · '+l.topic:''))+'</div></div><div class="amt num">'+money(l.fee)+'</div></button>';
+      return '<button class="lrow" data-act="editLesson" data-id="'+l.id+'"><div class="date num">'+d.getDate()+'<small>'+MONTHS[d.getMonth()].slice(0,3)+'</small></div><div class="grow"><div class="t1">'+esc(nameOf(l))+'</div><div class="t2">'+esc(trDate(l.date)+' dersi'+(l.topic?' · '+l.topic:''))+'</div></div><div class="amt num">'+money(l.fee)+'</div><span class="chip edit">✎ Düzenle</span></button>';
     }).join(''):'<p class="empty">Bu ay alınan ödeme yok.</p>')+'</section>'+
     '<section class="stack"><h2>'+year+' öğrenciye göre</h2>'+(ids.length?'<div class="card">'+ids.map(function(id){var s=stById(id),t=sum(by[id]);
-      return '<div class="bar '+(s?CATCLS[s.cat]:'c4')+'"><div class="row"><span class="t1">'+esc(s?s.name:'Silinmiş kayıt')+'</span><span class="amt num">'+money(t)+'</span></div><div class="track"><i style="width:'+Math.round(t/smx*100)+'%"></i></div><span class="t2">'+by[id].length+' ödeme</span></div>'}).join('')+'</div>':'<p class="empty">Bu yıl alınan ödeme yok.</p>')+'</section>'+
+      return '<div class="bar '+(s?CATCLS[s.cat]:'c4')+'"><div class="row"><button class="t1 link" data-act="editStudent" data-id="'+id+'">'+esc(s?s.name:'Silinmiş kayıt')+' ✎</button><span class="amt num">'+money(t)+'</span></div><div class="track"><i style="width:'+Math.round(t/smx*100)+'%"></i></div><span class="t2">'+by[id].length+' ödeme</span></div>'}).join('')+'</div>':'<p class="empty">Bu yıl alınan ödeme yok.</p>')+'</section>'+
     '<button class="btn ghost block" data-act="csvPay">'+year+' ödemelerini Excel için dışa aktar</button>';
   return html;
 }
@@ -575,6 +581,7 @@ function viewTopics(){
   var next=all.filter(function(l){return l.status==='planned'}).sort(function(a,b){return a.date<b.date?-1:1}).slice(0,3);
   var ord=withL.slice().sort(function(a,b){return (b.active-a.active)||a.name.localeCompare(b.name,'tr')});
   return '<h1>Konular</h1><div class="field"><label for="k_sid">Öğrenci / grup</label><select id="k_sid">'+opts(ord.map(function(x){return [x.id,x.name+(x.active?'':' (pasif)')]}),s.id)+'</select></div>'+
+    '<button class="btn ghost sm" data-act="editStudent" data-id="'+s.id+'">✎ '+esc(s.name)+' kaydını düzenle</button>'+
     '<div class="stats3 num"><div class="stat"><div class="t2">Yapılan</div><div class="amt">'+done.length+' ders</div></div><div class="stat"><div class="t2">Kazanç</div><div class="amt">'+money(sum(done))+'</div></div><div class="stat"><div class="t2">Bekleyen</div><div class="amt">'+money(sum(unpaidOf(all)))+'</div></div></div>'+
     (next.length?'<section class="stack"><h2>Sıradaki dersler</h2>'+next.map(function(l){return '<button class="lrow" data-act="selOpen" data-v="'+l.date+'"><span class="grow t1">'+longDate(l.date)+'</span><span class="t2 num">'+esc(ltime(l))+'</span></button>'}).join('')+'</section>':'')+
     '<section class="stack"><h2>İşlenen konular ve yorumlar</h2>'+(done.length?done.map(function(l){
@@ -593,8 +600,8 @@ function viewMoney(){
   if(!ids.length)return html+'<p class="empty">Bekleyen ödeme yok.</p>';
   html+=ids.map(function(id){
     var s=stById(id),g=groups[id].sort(byDateDesc);
-    return '<section class="card"><div class="row"><div class="grow"><div class="t1">'+esc(s?s.name:'Silinmiş kayıt')+'</div><div class="t2 num">'+g.length+' ders</div></div><div class="amt num">'+money(sum(g))+'</div></div>'+
-      '<div class="stack" style="gap:6px">'+g.map(function(l){var d=parse(l.date);return '<div class="row"><button class="grow t2" style="text-align:left" data-act="editLesson" data-id="'+l.id+'">'+d.getDate()+' '+MONTHS[d.getMonth()].slice(0,3)+' · '+esc(l.topic||'Konu girilmedi')+'</button><span class="amt num t2">'+money(l.fee)+'</span>'+chipPaid(l)+'</div>'}).join('')+'</div>'+
+    return '<section class="card"><div class="row"><div class="grow"><div class="t1">'+esc(s?s.name:'Silinmiş kayıt')+'</div><div class="t2 num">'+g.length+' ders</div></div><button class="chip edit" data-act="editStudent" data-id="'+id+'">✎ Düzenle</button><div class="amt num">'+money(sum(g))+'</div></div>'+
+      '<div class="stack" style="gap:6px">'+g.map(function(l){var d=parse(l.date);return '<div class="row"><button class="grow t2" style="text-align:left" data-act="editLesson" data-id="'+l.id+'">'+'✎ '+d.getDate()+' '+MONTHS[d.getMonth()].slice(0,3)+' · '+esc(l.topic||'Konu girilmedi')+'</button><span class="amt num t2">'+money(l.fee)+'</span>'+chipPaid(l)+'</div>'}).join('')+'</div>'+
       '<button class="btn primary block sm" data-act="payAll" data-id="'+id+'">Hepsi ödendi</button></section>';
   }).join('');
   return html;
@@ -623,7 +630,7 @@ function sheetLesson(sh){
 }
 function sheetStudent(sh){
   var s=stById(sh.id);if(!s)return '';
-  return '<h1>Kaydı düzenle</h1>'+
+  return '<h1>'+esc(s.name)+'</h1><p class="t2" style="margin:0">Kaydı düzenle</p>'+
     '<div class="field"><label for="e_name">Ad</label><input type="text" id="e_name" value="'+esc(s.name)+'"></div>'+
     '<div class="two"><div class="field"><label for="e_cat">Tür</label><select id="e_cat">'+opts(CATS.map(function(c){return [c,c]}),s.cat)+'</select></div>'+
     '<div class="field"><label for="e_fee">Ders ücreti (₺)</label><input type="number" inputmode="numeric" id="e_fee" min="0" value="'+s.fee+'"></div></div>'+
@@ -713,7 +720,7 @@ document.addEventListener('click',function(e){
     case 'payAll':state.lessons.forEach(function(x){if(x.sid===id&&isDone(x)&&!x.paid){x.paid=true;x.paidAt=ds(new Date())}});persist();render();toast('Hepsi ödendi olarak işaretlendi');break;
     case 'addLesson':ui.sheet={type:'lesson',date:v||ds(new Date())};renderSheet();break;
     case 'editLesson':ui.sheet={type:'lesson',id:id};renderSheet();break;
-    case 'editStudent':ui.sheet={type:'student',id:id};renderSheet();break;
+    case 'editStudent':if(!stById(id)){toast('Bu kayıt silinmiş');break}ui.sheet={type:'student',id:id};renderSheet();break;
     case 'extend':{
       s=stById(id);if(!s)break;
       var mine=state.lessons.filter(function(x){return x.sid===id}).map(function(x){return x.date}).sort();
