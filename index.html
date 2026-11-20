@@ -322,9 +322,9 @@ async function boot(){
     var r=db.collection('data/users/'+id).doc('state');
     var snap=await Promise.race([r.get(),timer]);
     var d=readData(snap);
-    if(d)state=normalize(d);
+    if(d)state=normalize(JSON.parse(JSON.stringify(d)));
     ref=r;ui.sync='ok';render();
-  }catch(e){ref=null;ui.sync='local';render()}
+  }catch(e){ref=null;ui.err=String(e&&e.message||e);ui.sync='fail';render()}
 }
 
 /* ---------- Yardımcılar ---------- */
@@ -377,6 +377,7 @@ function syncText(){
   return ui.sync==='ok'?'<span class="sync">Kayıtlar hesabında saklanıyor</span>'
     :ui.sync==='err'?'<span class="sync err">Kaydedilemedi, tekrar dene</span>'
     :ui.sync==='local'?'<span class="sync err">Önizleme: değişiklikler saklanmıyor</span>'
+    :ui.sync==='fail'?'<span class="sync err">Kayıt bağlantısı kurulamadı: '+esc(ui.err||'bilinmeyen hata')+'</span>'
     :'<span class="sync">Yükleniyor…</span>';
 }
 function renderSync(){var e=document.getElementById('syncSlot');if(e)e.innerHTML=syncText()}
@@ -674,7 +675,8 @@ function renderSheet(){
 function renderMain(){
   var m=document.getElementById('main'),st=m.scrollTop;
   var v=ui.tab==='reg'?viewReg():ui.tab==='cal'?viewCal():ui.tab==='chart'?viewChart():ui.tab==='topics'?viewTopics():ui.tab==='pay'?viewPay():viewMoney();
-  m.innerHTML='<div class="inner">'+v+'</div>';
+  var warn=(ui.sync==='local'||ui.sync==='fail'||ui.sync==='err')?'<div class="preview" style="background:var(--warn-soft);color:var(--warn)" role="alert">Dikkat: Kayıtlar şu an saklanmıyor, sayfa yenilenince eklediklerin kaybolur.'+(ui.sync==='fail'?' ('+esc(ui.err||'')+')':'')+'</div>':'';
+  m.innerHTML='<div class="inner">'+warn+v+'</div>';
   m.scrollTop=st;
   var dl=document.getElementById('topics'),seen={};
   dl.innerHTML=state.lessons.map(function(l){return l.topic}).filter(function(t){if(!t||seen[t])return false;seen[t]=1;return true}).map(function(t){return '<option value="'+esc(t)+'">'}).join('');
