@@ -305,7 +305,7 @@ function readData(s){
   }catch(e){return null}
 }
 function persist(){
-  if(backend==='sheets'){persistSheets();return}
+  if(backend==='supa'){persistSupa();return}
   if(!ref)return;pending=true;if(!saving)flush()
 }
 async function flush(){
@@ -332,65 +332,80 @@ async function bootDb(){
   }catch(e){ref=null;ui.err=String(e&&e.message||e);ui.sync='fail';render()}
 }
 
-/* ---------- Google tablosu ile kayıt ---------- */
-var cfg=null,baseHash='',sPending=false,sSaving=false,sTimer=null,lastLoad=0;
-function b64url(s){return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
-function fromB64url(s){s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return atob(s)}
-function loadCfg(){
-  try{
-    var m=/[#&]cfg=([^&]+)/.exec(location.hash||'');
-    if(m){
-      var o=JSON.parse(fromB64url(m[1]));
-      if(o&&o.u&&o.k)localStorage.setItem('dd_cfg',JSON.stringify(o));
-      try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}
-    }
-  }catch(e){}
-  try{var s=localStorage.getItem('dd_cfg');return s?JSON.parse(s):null}catch(e){return null}
-}
+/* ---------- Supabase ile kayıt ---------- */
+var SUPA='https://jjvjqcfvqsdmmuaesdho.supabase.co',PUB='sb_publishable_e7NKsTflqWc7ttu3ZIM0pA_n91MYqkJ';
+var sess=null,rev='',sPending=false,sSaving=false,sTimer=null,lastLoad=0;
+function sessLoad(){try{var o=JSON.parse(localStorage.getItem('dd_sess'));return o&&o.access_token?o:null}catch(e){return null}}
+function sessSave(o){o.exp=Date.now()+(o.expires_in||3600)*1000-60000;sess=o;try{localStorage.setItem('dd_sess',JSON.stringify(o))}catch(e){}}
 function cacheSave(){try{localStorage.setItem('dd_cache',JSON.stringify(state))}catch(e){}}
 function cacheLoad(){try{var s=localStorage.getItem('dd_cache');return s?JSON.parse(s):null}catch(e){return null}}
-async function sCall(payload){
-  var ctl=typeof AbortController!=='undefined'?new AbortController():null;
+async function aCall(path,body){
+  var res=await fetch(SUPA+'/auth/v1/'+path,{method:'POST',headers:{apikey:PUB,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  var j={};try{j=await res.json()}catch(e){}
+  if(!res.ok)throw new Error(j.msg||j.error_description||j.error||('Hata '+res.status));
+  return j;
+}
+async function getToken(){
+  if(!sess)throw new Error('auth');
+  if(Date.now()>sess.exp){
+    try{sessSave(await aCall('token?grant_type=refresh_token',{refresh_token:sess.refresh_token}))}
+    catch(e){sess=null;try{localStorage.removeItem('dd_sess')}catch(x){}throw new Error('auth')}
+  }
+  return sess.access_token;
+}
+async function rest(method,qs,body,prefer){
+  var t=await getToken(),ctl=typeof AbortController!=='undefined'?new AbortController():null;
   var to=setTimeout(function(){if(ctl)ctl.abort()},25000);
   try{
-    var res=await fetch(cfg.u,{method:'POST',body:JSON.stringify(Object.assign({key:cfg.k},payload)),signal:ctl?ctl.signal:undefined});
+    var h={apikey:PUB,Authorization:'Bearer '+t,'Content-Type':'application/json'};
+    if(prefer)h.Prefer=prefer;
+    var res=await fetch(SUPA+'/rest/v1/ders_state'+qs,{method:method,headers:h,body:body?JSON.stringify(body):undefined,signal:ctl?ctl.signal:undefined});
+    if(res.status===401)throw new Error('auth');
     if(!res.ok)throw new Error('Sunucu '+res.status);
-    return await res.json();
+    return res.status===204?[]:await res.json();
   }finally{clearTimeout(to)}
 }
 async function sLoad(){
-  var r=await sCall({action:'load'});
-  if(!r.ok)throw new Error(r.error==='auth'?'Gizli anahtar yanlış':(r.error||'bilinmeyen hata'));
-  state=normalize(r.state);baseHash=r.hash;lastLoad=Date.now();ui.sync='ok';cacheSave();
+  var rows=await rest('GET','?select=state,updated_at');
+  if(rows.length){state=normalize(rows[0].state);rev=rows[0].updated_at}
+  else{rev=''}
+  lastLoad=Date.now();ui.sync='ok';cacheSave();
 }
-async function bootSheets(){
-  cfg=loadCfg()||cfg;
-  if(!cfg){backend='none';ui.sync='local';render();ui.sheet={type:'setup'};renderSheet();return}
-  backend='sheets';
+async function bootSupa(){
+  sess=sessLoad();
+  if(!sess){backend='none';ui.sync='local';render();ui.sheet={type:'setup'};renderSheet();return}
+  backend='supa';
   var c=cacheLoad();if(c)state=normalize(c);
   ui.sync='wait';render();
-  try{await sLoad();render()}catch(e){ui.sync='fail';ui.err=String(e&&e.message||e);render()}
+  try{await sLoad();render()}
+  catch(e){
+    if(String(e&&e.message)==='auth'){backend='none';ui.sync='local';render();ui.sheet={type:'setup'};renderSheet();return}
+    ui.sync='fail';ui.err=String(e&&e.message||e);render();
+  }
 }
-function persistSheets(){
+function persistSupa(){
   if(ui.sync==='fail')return;
   sPending=true;clearTimeout(sTimer);sTimer=setTimeout(sFlush,600);
 }
 async function sFlush(){
   if(sSaving||ui.sync==='fail')return;
-  if(!baseHash){sTimer=setTimeout(sFlush,2500);return}
   sSaving=true;
   while(sPending){
     sPending=false;
     try{
-      var r=await sCall({action:'save',state:state,baseHash:baseHash});
-      if(r.ok){baseHash=r.hash;ui.sync='ok';cacheSave()}
-      else if(r.conflict){state=normalize(r.state);baseHash=r.hash;ui.sync='ok';cacheSave();render();toast('Tablo başka yerde değişmiş, yenilendi. Son işlemini tekrar yap.')}
-      else throw new Error(r.error||'bilinmeyen hata');
-    }catch(e){ui.sync='err';ui.err=String(e&&e.message||e);sPending=true;clearTimeout(sTimer);sTimer=setTimeout(sFlush,15000);break}
+      var now=new Date().toISOString(),rows;
+      if(rev)rows=await rest('PATCH','?user_id=eq.'+sess.user.id+'&updated_at=eq.'+encodeURIComponent(rev),{state:state,updated_at:now},'return=representation');
+      else rows=await rest('POST','?on_conflict=user_id',{user_id:sess.user.id,state:state,updated_at:now},'resolution=ignore-duplicates,return=representation');
+      if(rows.length){rev=rows[0].updated_at;ui.sync='ok';cacheSave()}
+      else{await sLoad();render();toast('Kayıt başka yerde değişmiş, yenilendi. Son işlemini tekrar yap.')}
+    }catch(e){
+      if(String(e&&e.message)==='auth'){ui.sync='fail';ui.err='Oturum süresi doldu, yeniden giriş yap';break}
+      ui.sync='err';ui.err=String(e&&e.message||e);sPending=true;clearTimeout(sTimer);sTimer=setTimeout(sFlush,15000);break;
+    }
   }
   sSaving=false;renderSync();
 }
-async function boot(){if(inClaude){await bootDb()}else{await bootSheets()}}
+async function boot(){if(inClaude){await bootDb()}else{await bootSupa()}}
 
 /* ---------- Yardımcılar ---------- */
 var stById=function(id){return state.students.find(function(s){return s.id===id})};
@@ -439,7 +454,7 @@ function themePicker(){
   return '<div class="themes" role="group" aria-label="Tema">'+t.map(function(x){return '<button data-act="theme" data-v="'+x[0]+'" aria-pressed="'+(cur===x[0])+'" aria-label="'+x[1]+'" style="background:linear-gradient(135deg,'+x[2]+' 50%,'+x[3]+' 50%)"></button>'}).join('')+'</div>';
 }
 function syncText(){
-  return ui.sync==='ok'?'<span class="sync">'+(backend==='sheets'?'Kayıtlar Google tablona yazılıyor':'Kayıtlar hesabında saklanıyor')+'</span>'
+  return ui.sync==='ok'?'<span class="sync">'+(backend==='supa'?'Kayıtlar veritabanına yazılıyor':'Kayıtlar hesabında saklanıyor')+'</span>'
     :ui.sync==='err'?'<span class="sync err">Kaydedilemedi, tekrar dene</span>'
     :ui.sync==='local'?'<span class="sync err">Önizleme: değişiklikler saklanmıyor</span>'
     :ui.sync==='fail'?'<span class="sync err">Kayıt bağlantısı kurulamadı: '+esc(ui.err||'bilinmeyen hata')+'</span>'
@@ -452,7 +467,7 @@ function renderSide(){
   s.className=ui.menu?'open':'';
   s.innerHTML='<div class="brand">Ders Defteri<small>Özel ders ve grup takibi</small></div><nav class="menu">'+
     TABS.map(function(t){return '<button data-act="tab" data-v="'+t[0]+'"'+(ui.tab===t[0]?' aria-current="page"':'')+'>'+ICONS[t[2]]+t[1]+(t[0]==='money'&&un?'<span class="badge num">'+un+'</span>':'')+'</button>'}).join('')+
-    '</nav><div class="side-foot"><span id="syncSlot">'+syncText()+'</span>'+(inClaude?'':'<button class="chip edit" data-act="setup">Bağlantı ayarları</button>')+themePicker()+'</div>';
+    '</nav><div class="side-foot"><span id="syncSlot">'+syncText()+'</span>'+(inClaude?'':(backend==='supa'?'<button class="chip edit" data-act="logout">Çıkış yap</button>':'<button class="chip edit" data-act="setup">Giriş yap</button>'))+themePicker()+'</div>';
   document.getElementById('dscrim').className='drawer-scrim'+(ui.menu?' on':'');
   document.getElementById('ttl').textContent=(TABS.find(function(t){return t[0]===ui.tab})||[0,''])[1];
 }
@@ -723,12 +738,11 @@ function sheetPostpone(sh){
     '<div class="actions"><button class="btn ghost" data-act="closeSheet">Vazgeç</button><button class="btn primary" data-act="savePostpone">Ertele</button></div>';
 }
 function sheetSetup(){
-  var link=cfg?location.href.split('#')[0]+'#cfg='+b64url(JSON.stringify(cfg)):'';
-  return '<h1>Google tablona bağlan</h1><p class="t2" style="margin:0">Apps Script web uygulamasının adresini ve gizli anahtarı yapıştır. Bilgiler sadece bu tarayıcıda saklanır.</p>'+
-    '<div class="field"><label for="s_url">Web uygulaması adresi</label><input type="text" id="s_url" autocomplete="off" placeholder="https://script.google.com/macros/s/.../exec" value="'+esc(cfg?cfg.u:'')+'"></div>'+
-    '<div class="field"><label for="s_key">Gizli anahtar</label><input type="text" id="s_key" autocomplete="off" value="'+esc(cfg?cfg.k:'')+'"></div>'+
-    (link?'<div class="field"><label for="s_link">Telefon için bağlantı</label><input type="text" id="s_link" readonly value="'+esc(link)+'"><span class="t2">Bu bağlantıyı telefonunda bir kez aç, ayarlar kendiliğinden gelir. Başkasıyla paylaşma, tablona erişim verir.</span><button class="btn ghost sm" data-act="copyLink">Bağlantıyı kopyala</button></div>':'')+
-    '<div class="actions"><button class="btn ghost" data-act="skipSetup">Şimdilik örnek veri</button><button class="btn primary" data-act="saveSetup">Bağlan</button></div>';
+  return '<h1>Giriş yap</h1><p class="t2" style="margin:0">Kayıtların veritabanında bu hesaba bağlı saklanır. İlk kez kullanıyorsan "Hesap oluştur"a bas.</p>'+
+    '<div class="field"><label for="s_mail">E-posta</label><input type="email" id="s_mail" autocomplete="username" placeholder="ornek@gmail.com"></div>'+
+    '<div class="field"><label for="s_pass">Şifre</label><input type="password" id="s_pass" autocomplete="current-password" placeholder="en az 8 karakter"></div>'+
+    '<div class="actions"><button class="btn ghost" data-act="signup">Hesap oluştur</button><button class="btn primary" data-act="login">Giriş yap</button></div>'+
+    '<div class="actions"><button class="btn ghost sm" data-act="skipSetup">Şimdilik örnek veri</button></div>';
 }
 function sheetCsv(sh){
   var scope=sh&&sh.scope||'month';
@@ -783,18 +797,18 @@ document.addEventListener('click',function(e){
       break;
     case 'setup':ui.menu=false;renderSide();ui.sheet={type:'setup'};renderSheet();break;
     case 'skipSetup':ui.sheet=null;renderSheet();break;
-    case 'saveSetup':{
-      var su=val('s_url').value.trim(),sk=val('s_key').value.trim();
-      if(su.indexOf('https://script.google.com/')!==0){toast('Adres https://script.google.com/ ile başlamalı');break}
-      if(!sk){toast('Gizli anahtarı yaz');break}
-      cfg={u:su,k:sk};
-      try{localStorage.setItem('dd_cfg',JSON.stringify(cfg))}catch(err){}
-      ui.sheet=null;renderSheet();bootSheets();break;}
-    case 'copyLink':{
-      var lk=val('s_link');
-      try{navigator.clipboard.writeText(lk.value).then(function(){toast('Kopyalandı')},function(){lk.select();toast('Metin seçildi, elle kopyala')})}
-      catch(err){lk.select();toast('Metin seçildi, elle kopyala')}
+    case 'login':case 'signup':{
+      var em=val('s_mail').value.trim(),pw=val('s_pass').value;
+      if(!em||pw.length<8){toast('E-posta ve en az 8 karakterlik şifre yaz');break}
+      var isUp=act==='signup';
+      aCall(isUp?'signup':'token?grant_type=password',{email:em,password:pw}).then(function(j){
+        if(!j.access_token){toast('Hesap oluşturuldu. E-postana gelen onay bağlantısına tıkla, sonra giriş yap.');return}
+        sessSave(j);ui.sheet=null;renderSheet();bootSupa();
+      }).catch(function(err){toast(String(err&&err.message||err))});
       break;}
+    case 'logout':
+      try{localStorage.removeItem('dd_sess');localStorage.removeItem('dd_cache')}catch(err){}
+      location.reload();break;
     case 'postpone':ui.sheet={type:'postpone',id:id};renderSheet();break;
     case 'ppQuick':val('p_date').value=v;break;
     case 'savePostpone':{
@@ -879,7 +893,7 @@ document.addEventListener('input',function(e){
   var t=e.target;if(t&&ui.tab==='reg'&&t.id&&t.id.indexOf('g_')===0)regPreview();
 });
 document.addEventListener('visibilitychange',function(){
-  if(document.visibilityState!=='visible'||backend!=='sheets'||sSaving||sPending||ui.sheet||Date.now()-lastLoad<30000)return;
+  if(document.visibilityState!=='visible'||backend!=='supa'||sSaving||sPending||ui.sheet||Date.now()-lastLoad<30000)return;
   sLoad().then(function(){render()}).catch(function(){});
 });
 render();
