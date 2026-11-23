@@ -36,6 +36,13 @@
   --c1:#2FBF94;--c2:#5B93F0;--c3:#E8B012;--c4:#D77AB8;
   color-scheme:dark;
 }
+.whenbtn{min-height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;font-weight:600}
+.whenbtn svg{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8}
+.mcal{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+.mcal.wd{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase}
+.md{min-height:42px;border-radius:99px;font-weight:600}
+.md.today{border:1px solid var(--accent)}
+.md.sel{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .look{display:flex;flex-direction:column;gap:8px}
 .look .row{display:flex;gap:8px;align-items:center}
 .modes{display:flex;border:1px solid var(--line);border-radius:99px;overflow:hidden}
@@ -338,6 +345,7 @@ var TR_ROWS=[
 ['Düzensiz','Irregular','Unregelmäßig','Irregular'],
 ['Her','Every','Jeden','Cada'],
 ['Kaç ders','Number of lessons','Anzahl Stunden','Cuántas clases'],
+['Ders günü ve saati','Lesson day and time','Unterrichtstag und Uhrzeit','Día y hora de la clase'],
 ['Yeni başlangıç saati','New start time','Neue Startzeit','Nueva hora de inicio'],
 ['Yeni bitiş saati','New end time','Neue Endzeit','Nueva hora de fin'],
 ['Başlangıç saati','Start time','Startzeit','Hora de inicio'],
@@ -810,11 +818,10 @@ function viewReg(){
     '<div class="field"><label for="g_name">Öğrenci veya grup adı</label><input type="text" id="g_name" autocomplete="off" placeholder="örn. Mert Yıldız"></div>'+
     '<div class="two"><div class="field"><label for="g_cat">Tür</label><select id="g_cat">'+opts([['Özel ders','Özel ders'],['Grup','Grup'],['Eğitim','Eğitim'],['Ekstra','Ekstra']],'Özel ders')+'</select></div>'+
     '<div class="field"><label for="g_fee">Ders ücreti (₺)</label><input type="number" inputmode="numeric" id="g_fee" min="0" value="500"></div></div>'+
-    '<div class="two"><div class="field"><label for="g_start">Ders günü</label><input type="date" id="g_start" value="'+ds(new Date())+'"></div>'+
-    '<div class="field"><label for="g_time">Başlangıç saati</label>'+tinput('g_time','20:00')+'</div></div>'+
-    '<div class="two"><div class="field"><label for="g_end">Bitiş saati</label>'+tinput('g_end','')+'</div>'+
+    '<div class="field"><label for="g_when">Ders günü ve saati</label><button type="button" class="whenbtn" id="g_when" data-act="openWhen"><span id="g_whenTxt">'+esc(whenLabel(ds(new Date()),'20:00',''))+'</span>'+ICONS.cal+'</button>'+
+    '<input type="hidden" id="g_start" value="'+ds(new Date())+'"><input type="hidden" id="g_time" value="20:00"><input type="hidden" id="g_end" value=""></div>'+
+    '<div class="two"><div class="field"><label for="g_rep">Tekrar</label><select id="g_rep">'+opts([[1,'Her hafta'],[2,'İki haftada bir'],[0,'Tek seferlik']],1)+'</select></div>'+
     '<div class="field"><label for="g_count">Kaç ders</label><input type="number" inputmode="numeric" id="g_count" min="1" max="60" value="12"></div></div>'+
-    '<div class="field"><label for="g_rep">Tekrar</label><select id="g_rep">'+opts([[1,'Her hafta'],[2,'İki haftada bir'],[0,'Tek seferlik']],1)+'</select></div>'+
     '<div class="preview" id="regPreview"></div>'+
     '<button class="btn primary block" data-act="saveReg">Kaydet ve takvime ekle</button></div>'+
     '<section class="stack"><h2>Kayıtlı öğrenci ve gruplar · '+act.length+'</h2>'+(act.length?act.map(studentCard).join(''):'<p class="empty">Henüz kayıt yok. Yukarıdaki formla ilkini ekle.</p>')+'</section>';
@@ -1062,6 +1069,17 @@ function sheetPostpone(sh){
     '<div class="two"><div class="field"><label for="p_end">Yeni bitiş saati</label>'+tinput('p_end',(ltime(l).split('–')[1]||''))+'</div><div class="field"></div></div>'+
     '<div class="actions"><button class="btn ghost" data-act="closeSheet">Vazgeç</button><button class="btn primary" data-act="savePostpone">Ertele</button></div>';
 }
+var whenLabel=function(date,t,e){var d=parse(date);return WD[(d.getDay()+6)%7]+', '+d.getDate()+' '+MONTHS[d.getMonth()].slice(0,3)+' '+d.getFullYear()+(t?' · '+t+(e?'–'+e:''):'')};
+function sheetWhen(sh){
+  var first=parse(sh.month+'-01'),off=(first.getDay()+6)%7,n=new Date(first.getFullYear(),first.getMonth()+1,0).getDate(),cells='',t0=ds(new Date());
+  for(var i=0;i<off;i++)cells+='<span></span>';
+  for(var d=1;d<=n;d++){var k=sh.month+'-'+pad(d);cells+='<button type="button" class="md'+(k===sh.date?' sel':'')+(k===t0?' today':'')+'" data-act="whenDay" data-v="'+k+'" aria-label="'+d+' '+MONTHS[first.getMonth()]+'">'+d+'</button>'}
+  return '<h1>Ders günü ve saati</h1>'+
+    '<div class="mnav"><button class="sq" data-act="whenPrev" aria-label="Önceki ay">‹</button><span class="ml">'+monthLabel(sh.month)+'</span><button class="sq" data-act="whenNext" aria-label="Sonraki ay">›</button></div>'+
+    '<div class="mcal wd">'+WD.map(function(x){return '<span>'+x+'</span>'}).join('')+'</div><div class="mcal">'+cells+'</div>'+
+    '<div class="two"><div class="field"><label for="w_time">Başlangıç saati</label>'+tinput('w_time',sh.time)+'</div><div class="field"><label for="w_end">Bitiş saati</label>'+tinput('w_end',sh.end)+'</div></div>'+
+    '<div class="actions"><button class="btn ghost" data-act="closeSheet">Vazgeç</button><button class="btn primary" data-act="whenSave">Kaydet</button></div>';
+}
 function sheetSetup(){
   return '<h1>Giriş yap</h1><p class="t2" style="margin:0">Kayıtların veritabanında bu hesaba bağlı saklanır. İlk kez kullanıyorsan "Hesap oluştur"a bas.</p>'+
     '<div class="field"><label for="s_mail">E-posta</label><input type="email" id="s_mail" autocomplete="username" placeholder="ornek@gmail.com"></div>'+
@@ -1078,7 +1096,7 @@ function sheetCsv(sh){
 function renderSheet(){
   var root=document.getElementById('sheetRoot'),sh=ui.sheet;
   if(!sh){root.innerHTML='';return}
-  var inner=sh.type==='setup'?sheetSetup():sh.type==='lesson'?sheetLesson(sh):sh.type==='postpone'?sheetPostpone(sh):sh.type==='student'?sheetStudent(sh):sheetCsv(sh);
+  var inner=sh.type==='setup'?sheetSetup():sh.type==='when'?sheetWhen(sh):sh.type==='lesson'?sheetLesson(sh):sh.type==='postpone'?sheetPostpone(sh):sh.type==='student'?sheetStudent(sh):sheetCsv(sh);
   root.innerHTML='<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true">'+inner+'</div></div>';
   if(sh.focus){var f=val(sh.focus);if(f)setTimeout(function(){try{f.focus()}catch(e){}},60)}
 }
@@ -1102,6 +1120,15 @@ document.addEventListener('click',function(e){
   var b=e.target.closest('[data-act]');if(!b)return;
   var act=b.dataset.act,id=b.dataset.id,v=b.dataset.v,l,s;
   switch(act){
+    case 'openWhen':ui.sheet={type:'when',date:val('g_start').value,month:val('g_start').value.slice(0,7),time:val('g_time').value,end:val('g_end').value};renderSheet();break;
+    case 'whenDay':case 'whenPrev':case 'whenNext':{
+      var sw=ui.sheet;sw.time=val('w_time').value;sw.end=val('w_end').value;
+      if(act==='whenDay'){sw.date=v;sw.month=v.slice(0,7)}else sw.month=shiftMonth(sw.month,act==='whenNext'?1:-1);
+      renderSheet();break;}
+    case 'whenSave':{
+      var sv=ui.sheet,wt=val('w_time').value,we=val('w_end').value;
+      val('g_start').value=sv.date;val('g_time').value=wt;val('g_end').value=we;
+      ui.sheet=null;renderSheet();val('g_whenTxt').textContent=whenLabel(sv.date,wt,we);trNode(val('g_whenTxt').parentNode);regPreview();break;}
     case 'scrim':if(e.target===b){ui.sheet=null;renderSheet()}break;
     case 'closeSheet':ui.sheet=null;renderSheet();break;
     case 'menu':ui.menu=true;renderSide();break;
