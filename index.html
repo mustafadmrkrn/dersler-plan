@@ -119,7 +119,7 @@ main{flex:1;overflow-y:auto}
 /* Formlar */
 .field{display:flex;flex-direction:column;gap:6px}
 .field label,.lbl{font-size:13px;font-weight:600;color:var(--muted)}
-.field input[type=text],.field input[type=number],.field input[type=date],.field select,.field textarea{min-height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);width:100%;font-size:16px}
+.field input[type=text],.field input[type=number],.field input[type=date],.field input[type=time],.field select,.field textarea{min-height:48px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);width:100%;font-size:16px}
 .field textarea{padding:10px 12px;min-height:110px;line-height:1.45;resize:vertical}
 .field textarea.mono{min-height:160px;font-size:13px;font-family:ui-monospace,monospace}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -338,6 +338,10 @@ var TR_ROWS=[
 ['Düzensiz','Irregular','Unregelmäßig','Irregular'],
 ['Her','Every','Jeden','Cada'],
 ['Kaç ders','Number of lessons','Anzahl Stunden','Cuántas clases'],
+['Yeni başlangıç saati','New start time','Neue Startzeit','Nueva hora de inicio'],
+['Yeni bitiş saati','New end time','Neue Endzeit','Nueva hora de fin'],
+['Başlangıç saati','Start time','Startzeit','Hora de inicio'],
+['Bitiş saati','End time','Endzeit','Hora de fin'],
 ['Başlangıç tarihi','Start date','Startdatum','Fecha de inicio'],
 ['ders · ilk ders','lessons · first lesson','Stunden · erste Stunde','clases · primera clase'],
 ['· son ders','· last lesson','· letzte Stunde','· última clase'],
@@ -578,13 +582,22 @@ var ref=null,saving=false,pending=false;
 var inClaude=(typeof claude!=='undefined'&&!!claude&&!!claude.use);
 var backend='none';
 
+function splitTime(o){
+  var t=String(o.time||'').trim(),m=/^(\d{1,2})[:.](\d{2})\s*[–—-]\s*(\d{1,2})[:.](\d{2})$/.exec(t),h=/^(\d{1,2})[:.](\d{2})$/.exec(t),p2=function(n){return String(n).padStart(2,'0')};
+  if(m){o.time=p2(m[1])+':'+m[2];if(!o.end)o.end=p2(m[3])+':'+m[4]}
+  else if(h)o.time=p2(h[1])+':'+h[2];
+  if(o.end==null)o.end='';
+  return o;
+}
 function normalize(d){
   var ss=(Array.isArray(d.students)?d.students:[]).map(function(s){
+    splitTime(s);
     if(s.cat==='Minecraft')s.cat='Grup';
     if(s.interval==null)s.interval=s.day>=0?1:0;
     return s;
   });
   var ls=(Array.isArray(d.lessons)?d.lessons:[]).map(function(l){
+    splitTime(l);
     if(!l.status)l.status='done';
     if(l.note==null)l.note='';
     if(l.topic==null)l.topic='';
@@ -727,15 +740,16 @@ function lessonsOn(date){
   });
 }
 function schedule(s){
-  if(s.day<0||s.interval===0)return 'Tek seferlik'+(s.time?' · '+s.time:'');
-  return (s.interval===2?'İki haftada bir ':'Her ')+DAYS[s.day]+(s.time?' '+s.time:'');
+  if(s.day<0||s.interval===0)return 'Tek seferlik'+(s.time?' · '+s.time+(s.end?'–'+s.end:''):'');
+  return (s.interval===2?'İki haftada bir ':'Her ')+DAYS[s.day]+(s.time?' '+s.time+(s.end?'–'+s.end:''):'');
 }
 function shortName(n){
   var w=n.split(' '),first=w[0].toLowerCase(),dup=state.students.filter(function(s){return s.name.split(' ')[0].toLowerCase()===first}).length>1;
   if(dup&&w.length>1)return w[0].slice(0,3)+' '+w[w.length-1];
   return w[0];
 }
-var ltime=function(l){var s=stById(l.sid);return l.time||(s&&s.time)||''};
+var ltime=function(l){var s=stById(l.sid);if(l.time)return l.time+(l.end?'–'+l.end:'');return s&&s.time?s.time+(s.end?'–'+s.end:''):''};
+var tinput=function(id,v){return '<input type="time" id="'+id+'" value="'+esc(v||'')+'">'};
 var shortD=function(s){var d=parse(s);return d.getDate()+' '+MONTHS[d.getMonth()].slice(0,3)};
 function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(function(){t.classList.remove('on')},2400)}
 var val=function(id){return document.getElementById(id)};
@@ -797,7 +811,8 @@ function viewReg(){
     '<div class="two"><div class="field"><label for="g_cat">Tür</label><select id="g_cat">'+opts([['Özel ders','Özel ders'],['Grup','Grup'],['Eğitim','Eğitim'],['Ekstra','Ekstra']],'Özel ders')+'</select></div>'+
     '<div class="field"><label for="g_fee">Ders ücreti (₺)</label><input type="number" inputmode="numeric" id="g_fee" min="0" value="500"></div></div>'+
     '<div class="two"><div class="field"><label for="g_day">Ders günü</label><select id="g_day">'+opts([1,2,3,4,5,6,0].map(function(d){return [d,DAYS[d]]}),6)+'</select></div>'+
-    '<div class="field"><label for="g_time">Saat</label><input type="text" id="g_time" autocomplete="off" placeholder="20:00" value="20:00"></div></div>'+
+    '<div class="field"><label for="g_time">Başlangıç saati</label>'+tinput('g_time','20:00')+'</div></div>'+
+    '<div class="two"><div class="field"><label for="g_end">Bitiş saati</label>'+tinput('g_end','')+'</div><div class="field"></div></div>'+
     '<div class="two"><div class="field"><label for="g_rep">Tekrar</label><select id="g_rep">'+opts([[1,'Her hafta'],[2,'İki haftada bir'],[0,'Tek seferlik']],1)+'</select></div>'+
     '<div class="field"><label for="g_count">Kaç ders</label><input type="number" inputmode="numeric" id="g_count" min="1" max="60" value="12"></div></div>'+
     '<div class="field"><label for="g_start">Başlangıç tarihi</label><input type="date" id="g_start" value="'+ds(new Date())+'"></div>'+
@@ -1008,7 +1023,7 @@ function sheetLesson(sh){
     '<div class="field"><label for="f_sid">Öğrenci / grup</label><select id="f_sid">'+opts(order.map(function(x){return [x.id,x.name+(x.active?'':' (pasif)')]}),sid)+'</select></div>'+
     '<div class="two"><div class="field"><label for="f_date">Tarih</label><input type="date" id="f_date" value="'+date+'"></div>'+
     '<div class="field"><label for="f_status">Durum</label><select id="f_status">'+opts([['planned','Planlı'],['done','Yapıldı'],['missed','İptal']],status)+'</select></div></div>'+
-    '<div class="field"><label for="f_time">Saat</label><input type="text" id="f_time" autocomplete="off" placeholder="'+esc(s.time||'20:00')+'" value="'+esc(l?(l.time||''):'')+'"><span class="t2">Boş bırakırsan kayıttaki saat kullanılır.</span></div>'+
+    '<div class="two"><div class="field"><label for="f_time">Başlangıç saati</label>'+tinput('f_time',l?l.time:'')+'</div><div class="field"><label for="f_end">Bitiş saati</label>'+tinput('f_end',l?l.end:'')+'</div></div><span class="t2">Boş bırakırsan kayıttaki saat kullanılır.</span>'+
     '<div class="field"><label for="f_topic">İşlenen konu</label><input type="text" id="f_topic" list="topics" autocomplete="off" placeholder="örn. ultrasonik sensör" value="'+esc(l?l.topic:'')+'"></div>'+
     '<div class="field"><label for="f_note">Yorum</label><textarea id="f_note" placeholder="Ne işlendi, nerede takıldı, bir sonraki derse not">'+esc(l?l.note:'')+'</textarea></div>'+
     '<div class="two"><div class="field"><label for="f_fee">Ücret (₺)</label><input type="number" inputmode="numeric" id="f_fee" min="0" value="'+(l?l.fee:s.fee)+'"></div>'+
@@ -1024,7 +1039,8 @@ function sheetStudent(sh){
     '<div class="two"><div class="field"><label for="e_cat">Tür</label><select id="e_cat">'+opts(CATS.map(function(c){return [c,c]}),s.cat)+'</select></div>'+
     '<div class="field"><label for="e_fee">Ders ücreti (₺)</label><input type="number" inputmode="numeric" id="e_fee" min="0" value="'+s.fee+'"></div></div>'+
     '<div class="two"><div class="field"><label for="e_day">Ders günü</label><select id="e_day">'+opts([[-1,'Düzensiz']].concat([1,2,3,4,5,6,0].map(function(d){return [d,DAYS[d]]})),s.day)+'</select></div>'+
-    '<div class="field"><label for="e_time">Saat</label><input type="text" id="e_time" value="'+esc(s.time)+'"></div></div>'+
+    '<div class="field"><label for="e_time">Başlangıç saati</label>'+tinput('e_time',s.time)+'</div></div>'+
+    '<div class="two"><div class="field"><label for="e_end">Bitiş saati</label>'+tinput('e_end',s.end)+'</div><div class="field"></div></div>'+
     '<label class="sw" for="e_apply"><input type="checkbox" id="e_apply" checked>Yeni ücreti planlı derslere uygula</label>'+
     '<label class="sw" for="e_active"><input type="checkbox" id="e_active"'+(s.active?' checked':'')+'>Aktif</label>'+
     '<div class="actions"><button class="btn ghost" data-act="closeSheet">Vazgeç</button><button class="btn primary" data-act="saveStudent">Kaydet</button></div>'+
@@ -1042,7 +1058,8 @@ function sheetPostpone(sh){
   return '<h1>Dersi ertele</h1><p class="t2" style="margin:0">'+esc(nameOf(l))+' · şu an '+esc(longDate(l.date))+(ltime(l)?' '+esc(ltime(l)):'')+'. Ne zaman olacak?</p>'+
     '<div class="stack" style="gap:8px">'+q.map(function(x){return '<button class="btn ghost" data-act="ppQuick" data-v="'+x[1]+'">'+x[0]+' · '+esc(shortD(x[1]))+'</button>'}).join('')+'</div>'+
     '<div class="two"><div class="field"><label for="p_date">Yeni tarih</label><input type="date" id="p_date" value="'+q[1][1]+'"></div>'+
-    '<div class="field"><label for="p_time">Yeni saat</label><input type="text" id="p_time" autocomplete="off" value="'+esc(ltime(l))+'" placeholder="20:00"></div></div>'+
+    '<div class="field"><label for="p_time">Yeni başlangıç saati</label>'+tinput('p_time',(ltime(l).split('–')[0]))+'</div></div>'+
+    '<div class="two"><div class="field"><label for="p_end">Yeni bitiş saati</label>'+tinput('p_end',(ltime(l).split('–')[1]||''))+'</div><div class="field"></div></div>'+
     '<div class="actions"><button class="btn ghost" data-act="closeSheet">Vazgeç</button><button class="btn primary" data-act="savePostpone">Ertele</button></div>';
 }
 function sheetSetup(){
@@ -1122,12 +1139,12 @@ document.addEventListener('click',function(e){
     case 'ppQuick':val('p_date').value=v;break;
     case 'savePostpone':{
       l=lById(ui.sheet.id);if(!l)break;
-      var nd=val('p_date').value,nt=val('p_time').value.trim();
+      var nd=val('p_date').value,nt=val('p_time').value,ne=val('p_end').value,nfull=nt+(ne?'–'+ne:'');
       if(!nd){toast('Yeni tarihi seç');break}
-      if(nd===l.date&&nt===ltime(l)){toast('Tarih ya da saati değiştir');break}
-      l.postponedFrom=l.postponedFrom||l.date;l.date=nd;l.time=nt;l.status='planned';
+      if(nd===l.date&&nfull===ltime(l)){toast('Tarih ya da saati değiştir');break}
+      l.postponedFrom=l.postponedFrom||l.date;l.date=nd;l.time=nt;l.end=ne;l.status='planned';
       ui.sel=nd;ui.cal=nd.slice(0,7);ui.sheet=null;persist();render();
-      toast('Ders '+longDate(nd)+(nt?' '+nt:'')+' için ertelendi');break;}
+      toast('Ders '+longDate(nd)+(nt?' '+nfull:'')+' için ertelendi');break;}
     case 'togglePaid':l=lById(id);if(l){l.paid=!l.paid;l.paidAt=l.paid?ds(new Date()):'';persist();render()}break;
     case 'payAll':state.lessons.forEach(function(x){if(x.sid===id&&isDone(x)&&!x.paid){x.paid=true;x.paidAt=ds(new Date())}});persist();render();toast('Hepsi ödendi olarak işaretlendi');break;
     case 'addLesson':ui.sheet={type:'lesson',date:v||ds(new Date())};renderSheet();break;
@@ -1146,7 +1163,7 @@ document.addEventListener('click',function(e){
       if(isNaN(fee)||fee<0){toast('Ücreti rakamla yaz');break}
       var rep=parseInt(val('g_rep').value,10),day=parseInt(val('g_day').value,10);
       var count=rep===0?1:Math.min(60,Math.max(1,parseInt(val('g_count').value,10)||1));
-      var st={id:uid(),name:name,day:day,time:val('g_time').value.trim(),fee:fee,cat:val('g_cat').value,interval:rep,active:true};
+      var st={id:uid(),name:name,day:day,time:val('g_time').value,end:val('g_end').value,fee:fee,cat:val('g_cat').value,interval:rep,active:true};
       var dates=genDates(val('g_start').value||ds(new Date()),day,rep===0?1:rep,count);
       state.students.push(st);
       dates.forEach(function(d){state.lessons.push({id:uid(),sid:st.id,date:d,topic:'',note:'',fee:fee,status:'planned',paid:false})});
@@ -1158,7 +1175,7 @@ document.addEventListener('click',function(e){
       if(!nm){toast('Bir ad yaz');break}
       if(isNaN(nf)||nf<0){toast('Ücreti rakamla yaz');break}
       if(val('e_apply').checked&&nf!==s.fee){state.lessons.forEach(function(x){if(x.sid===s.id&&x.status==='planned')x.fee=nf})}
-      s.name=nm;s.fee=nf;s.cat=val('e_cat').value;s.day=parseInt(val('e_day').value,10);s.time=val('e_time').value.trim();s.active=val('e_active').checked;
+      s.name=nm;s.fee=nf;s.cat=val('e_cat').value;s.day=parseInt(val('e_day').value,10);s.time=val('e_time').value;s.end=val('e_end').value;s.active=val('e_active').checked;
       ui.sheet=null;persist();render();toast('Kaydedildi');break;}
     case 'deleteStudent':
       if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Silmeyi onayla';break}
@@ -1170,7 +1187,7 @@ document.addEventListener('click',function(e){
       var sid=val('f_sid').value,date=val('f_date').value,lf=parseInt(val('f_fee').value,10);
       if(!sid||!date){toast('Öğrenci ve tarih gerekli');break}
       if(isNaN(lf)||lf<0){toast('Ücreti rakamla yaz');break}
-      var data={sid:sid,date:date,status:val('f_status').value,topic:val('f_topic').value.trim(),note:val('f_note').value.trim(),fee:lf,time:val('f_time').value.trim(),paid:val('f_paid').checked,paidAt:''};
+      var data={sid:sid,date:date,status:val('f_status').value,topic:val('f_topic').value.trim(),note:val('f_note').value.trim(),fee:lf,time:val('f_time').value,end:val('f_end').value,paid:val('f_paid').checked,paidAt:''};
       var oldL=ui.sheet.id?lById(ui.sheet.id):null;
       if(data.paid)data.paidAt=val('f_paidAt').value||(oldL&&oldL.paid&&oldL.paidAt)||ds(new Date());
       if(oldL&&oldL.date!==date&&data.status==='planned')data.postponedFrom=oldL.postponedFrom||oldL.date;
