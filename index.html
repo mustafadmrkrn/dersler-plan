@@ -345,6 +345,11 @@ var TR_ROWS=[
 ['Düzensiz','Irregular','Unregelmäßig','Irregular'],
 ['Her','Every','Jeden','Cada'],
 ['Kaç ders','Number of lessons','Anzahl Stunden','Cuántas clases'],
+['Sınırsız devam et','Keep going indefinitely','Unbegrenzt fortsetzen','Continuar sin límite'],
+['Sınırsız · ilk ders','Unlimited · first lesson','Unbegrenzt · erste Stunde','Sin límite · primera clase'],
+['önümüzdeki 12 hafta takvimde görünür, sonrası kendiliğinden eklenir','the next 12 weeks show in the calendar, later ones are added automatically','die nächsten 12 Wochen erscheinen im Kalender, weitere kommen automatisch dazu','las próximas 12 semanas aparecen en el calendario y las siguientes se añaden solas'],
+['sınırsız, ilk','unlimited, first','unbegrenzt, erste','sin límite, primeras'],
+['sınırsız','unlimited','unbegrenzt','sin límite'],
 ['Ders günü ve saati','Lesson day and time','Unterrichtstag und Uhrzeit','Día y hora de la clase'],
 ['Yeni başlangıç saati','New start time','Neue Startzeit','Nueva hora de inicio'],
 ['Yeni bitiş saati','New end time','Neue Endzeit','Nueva hora de fin'],
@@ -607,9 +612,21 @@ function splitTime(o){
   if(o.end==null)o.end='';
   return o;
 }
+function ensureOpen(){
+  var today=ds(new Date()),hz=addDays(today,84),added=false;
+  state.students.forEach(function(s){
+    if(!s.open||!s.active||s.day<0||!(s.interval>0))return;
+    var mine=state.lessons.filter(function(x){return x.sid===s.id}).map(function(x){return x.date}).sort();
+    var last=mine.length?mine[mine.length-1]:'';
+    var d=last>=today?addDays(last,7*s.interval):nextOnOrAfter(today,s.day),g=0;
+    while(d<=hz&&g++<60){state.lessons.push({id:uid(),sid:s.id,date:d,topic:'',note:'',fee:s.fee,status:'planned',paid:false});d=addDays(d,7*s.interval);added=true}
+  });
+  return added;
+}
+function afterLoad(){if(ensureOpen())persist()}
 function normalize(d){
   var ss=(Array.isArray(d.students)?d.students:[]).map(function(s){
-    splitTime(s);
+    splitTime(s);s.open=!!s.open;
     if(s.cat==='Minecraft')s.cat='Grup';
     if(s.interval==null)s.interval=s.day>=0?1:0;
     return s;
@@ -657,7 +674,7 @@ async function bootDb(){
     var snap=await Promise.race([r.get(),timer]);
     var d=readData(snap);
     if(d)state=normalize(JSON.parse(JSON.stringify(d)));
-    ref=r;backend='db';ui.sync='ok';render();
+    ref=r;backend='db';ui.sync='ok';afterLoad();render();
   }catch(e){ref=null;ui.err=String(e&&e.message||e);ui.sync='fail';render()}
 }
 
@@ -713,7 +730,7 @@ async function sLoad(){
   if(rows.length){state=normalize(rows[0].state);rev=rows[0].updated_at}
   else{rev='';state=emptyState()}
   if(!state.students.length)ui.tab='reg';
-  lastLoad=Date.now();ui.sync='ok';cacheSave();
+  lastLoad=Date.now();ui.sync='ok';cacheSave();afterLoad();
 }
 async function bootSupa(){
   sess=sessLoad();
@@ -771,7 +788,7 @@ function lessonsOn(date){
 }
 function schedule(s){
   if(s.day<0||s.interval===0)return 'Tek seferlik'+(s.time?' · '+s.time+(s.end?'–'+s.end:''):'');
-  return (s.interval===2?'İki haftada bir ':'Her ')+DAYS[s.day]+(s.time?' '+s.time+(s.end?'–'+s.end:''):'');
+  return (s.interval===2?'İki haftada bir ':'Her ')+DAYS[s.day]+(s.time?' '+s.time+(s.end?'–'+s.end:''):'')+(s.open?' · sınırsız':'');
 }
 function shortName(n){
   var w=n.split(' '),first=w[0].toLowerCase(),dup=state.students.filter(function(s){return s.name.split(' ')[0].toLowerCase()===first}).length>1;
@@ -844,19 +861,24 @@ function viewReg(){
     '<input type="hidden" id="g_start" value="'+ds(new Date())+'"><input type="hidden" id="g_time" value="20:00"><input type="hidden" id="g_end" value=""></div>'+
     '<div class="two"><div class="field"><label for="g_rep">Tekrar</label><select id="g_rep">'+opts([[1,'Her hafta'],[2,'İki haftada bir'],[0,'Tek seferlik']],1)+'</select></div>'+
     '<div class="field"><label for="g_count">Kaç ders</label><input type="number" inputmode="numeric" id="g_count" min="1" max="60" value="12"></div></div>'+
+    '<label class="sw" for="g_open"><input type="checkbox" id="g_open">Sınırsız devam et</label>'+
     '<div class="preview" id="regPreview"></div>'+
     '<button class="btn primary block" data-act="saveReg">Kaydet ve takvime ekle</button></div>'+
     '<section class="stack"><h2>Kayıtlı öğrenci ve gruplar · '+act.length+'</h2>'+(act.length?act.map(studentCard).join(''):'<p class="empty">Henüz kayıt yok. Yukarıdaki formla ilkini ekle.</p>')+'</section>';
   if(off.length)html+='<section class="stack"><h2>Pasif · '+off.length+'</h2>'+off.map(studentCard).join('')+'</section>';
   return html;
 }
+function regOpen(rep){return rep!==0&&(val('g_open').checked||String(val('g_count').value).trim()==='')}
 function regPreview(){
   var el=val('regPreview');if(!el)return;
   var rep=parseInt(val('g_rep').value,10),fee=parseInt(val('g_fee').value,10)||0;
+  var open=regOpen(rep);
   var count=rep===0?1:Math.min(60,Math.max(1,parseInt(val('g_count').value,10)||1));
   var start=val('g_start').value||ds(new Date());
   var day=parse(start).getDay();
   var dates=genDates(start,day,rep===0?1:rep,count);
+  val('g_count').disabled=val('g_open').checked;
+  if(open){el.textContent='Sınırsız · ilk ders '+longDate(dates[0])+' · önümüzdeki 12 hafta takvimde görünür, sonrası kendiliğinden eklenir';return}
   el.textContent=count+' ders · ilk ders '+longDate(dates[0])+(count>1?' · son ders '+longDate(dates[count-1]):'')+' · planlanan gelir '+money(fee*count);
 }
 
@@ -1071,6 +1093,7 @@ function sheetStudent(sh){
     '<div class="field"><label for="e_time">Başlangıç saati</label>'+tinput('e_time',s.time)+'</div></div>'+
     '<div class="two"><div class="field"><label for="e_end">Bitiş saati</label>'+tinput('e_end',s.end)+'</div><div class="field"></div></div>'+
     '<label class="sw" for="e_apply"><input type="checkbox" id="e_apply" checked>Yeni ücreti planlı derslere uygula</label>'+
+    (s.interval>0&&s.day>=0?'<label class="sw" for="e_open"><input type="checkbox" id="e_open"'+(s.open?' checked':'')+'>Sınırsız devam et</label>':'')+
     '<label class="sw" for="e_active"><input type="checkbox" id="e_active"'+(s.active?' checked':'')+'>Aktif</label>'+
     '<div class="actions"><button class="btn ghost" data-act="closeSheet">Vazgeç</button><button class="btn primary" data-act="saveStudent">Kaydet</button></div>'+
     '<button class="btn danger block" data-act="deleteStudent">Kaydı ve tüm derslerini sil</button>';
@@ -1212,20 +1235,22 @@ document.addEventListener('click',function(e){
       if(!name){toast('Önce bir ad yaz');val('g_name').focus();break}
       if(isNaN(fee)||fee<0){toast('Ücreti rakamla yaz');break}
       var rep=parseInt(val('g_rep').value,10),day=parse(val('g_start').value||ds(new Date())).getDay();
+      var open=regOpen(rep);
       var count=rep===0?1:Math.min(60,Math.max(1,parseInt(val('g_count').value,10)||1));
-      var st={id:uid(),name:name,day:day,time:val('g_time').value,end:val('g_end').value,fee:fee,cat:val('g_cat').value,interval:rep,active:true};
-      var dates=genDates(val('g_start').value||ds(new Date()),day,rep===0?1:rep,count);
+      var st={id:uid(),name:name,day:day,time:val('g_time').value,end:val('g_end').value,fee:fee,cat:val('g_cat').value,interval:rep,active:true,open:open};
+      var dates=genDates(val('g_start').value||ds(new Date()),day,rep===0?1:rep,open?60:count);
+      if(open){var hz=addDays(ds(new Date()),84),inh=dates.filter(function(d){return d<=hz});dates=inh.length?inh:[dates[0]];count=dates.length}
       state.students.push(st);
       dates.forEach(function(d){state.lessons.push({id:uid(),sid:st.id,date:d,topic:'',note:'',fee:fee,status:'planned',paid:false})});
       ui.cal=dates[0].slice(0,7);ui.sel=dates[0];
-      persist();goTab('cal');toast(name+': '+count+' ders takvime eklendi');break;}
+      persist();goTab('cal');toast(open?name+': sınırsız, ilk '+count+' ders takvime eklendi':name+': '+count+' ders takvime eklendi');break;}
     case 'saveStudent':{
       s=stById(ui.sheet.id);if(!s)break;
       var nm=val('e_name').value.trim(),nf=parseInt(val('e_fee').value,10);
       if(!nm){toast('Bir ad yaz');break}
       if(isNaN(nf)||nf<0){toast('Ücreti rakamla yaz');break}
       if(val('e_apply').checked&&nf!==s.fee){state.lessons.forEach(function(x){if(x.sid===s.id&&x.status==='planned')x.fee=nf})}
-      s.name=nm;s.fee=nf;s.cat=val('e_cat').value;s.day=parseInt(val('e_day').value,10);s.time=val('e_time').value;s.end=val('e_end').value;s.active=val('e_active').checked;
+      s.name=nm;s.fee=nf;s.cat=val('e_cat').value;s.day=parseInt(val('e_day').value,10);s.time=val('e_time').value;s.end=val('e_end').value;s.active=val('e_active').checked;s.open=!!(val('e_open')&&val('e_open').checked);ensureOpen();
       ui.sheet=null;persist();render();toast('Kaydedildi');break;}
     case 'deleteStudent':
       if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Silmeyi onayla';break}
@@ -1264,6 +1289,7 @@ document.addEventListener('change',function(e){
   var t=e.target;if(!t)return;
   if(t.id==='f_sid'&&ui.sheet&&ui.sheet.type==='lesson'&&!ui.sheet.id){var s=stById(t.value);if(s)val('f_fee').value=s.fee}
   if(t.id==='k_sid'){ui.kSid=t.value;renderMain()}
+  if(t.id==='g_open')regPreview();
   if(t.id==='langSel'){prefs.lang=t.value;savePrefs();location.reload()}
 });
 document.addEventListener('input',function(e){
