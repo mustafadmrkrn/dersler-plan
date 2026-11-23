@@ -7,9 +7,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#070B16">
 <style>
-/* Düzen: solda menü (telefonda çekmece), sağda içerik. Kayıt formu ders takvimini üretir, takvimde dersler işaretlenir. Üç tema: tablo (koyu), açık, orman. */
-:root,:root[data-app-theme="tablo"]{
+/* Düzen: solda menü (telefonda çekmece), sağda içerik. Kayıt formu ders takvimini üretir, takvimde dersler işaretlenir. İki renk (mavi, orman), her biri açık ve koyu görünüm. */
+:root{
   --bg:#070B16;--surface:#111A2E;--ink:#EAF0FA;--muted:#8A99B5;--line:#1E2B47;
   --accent:#1FA2F0;--accent-ink:#04121F;--accent-soft:#0F2A44;--warn:#E8B012;--warn-soft:#3A2E08;
   --c1:#1FA2F0;--c2:#7DBA4A;--c3:#E8B012;--c4:#C084FC;
@@ -17,18 +18,30 @@
   --body:'Instrument Sans',system-ui,sans-serif;
   color-scheme:dark;
 }
-:root[data-app-theme="acik"]{
+:root[data-pal="mavi"][data-mode="light"]{
   --bg:#F5F7FB;--surface:#FFFFFF;--ink:#0F172A;--muted:#5B6B85;--line:#E1E7F0;
   --accent:#1478D4;--accent-ink:#FFFFFF;--accent-soft:#DCEBFB;--warn:#9A6700;--warn-soft:#FFF1CC;
   --c1:#1478D4;--c2:#3E8E2E;--c3:#C98A00;--c4:#8B3FD1;
   color-scheme:light;
 }
-:root[data-app-theme="orman"]{
+:root[data-pal="orman"][data-mode="light"]{
   --bg:#F2F5F1;--surface:#FFFFFF;--ink:#13201B;--muted:#5E6F67;--line:#DCE3DD;
   --accent:#0E7A5C;--accent-ink:#FFFFFF;--accent-soft:#DDF0E8;--warn:#9A5A08;--warn-soft:#FBEBD0;
   --c1:#0E7A5C;--c2:#2D6CDF;--c3:#C98A00;--c4:#B24A8B;
   color-scheme:light;
 }
+:root[data-pal="orman"][data-mode="dark"]{
+  --bg:#0A130F;--surface:#13211B;--ink:#E6F0EA;--muted:#8CA397;--line:#22342B;
+  --accent:#2FBF94;--accent-ink:#04140E;--accent-soft:#123327;--warn:#E8B012;--warn-soft:#3A2E08;
+  --c1:#2FBF94;--c2:#5B93F0;--c3:#E8B012;--c4:#D77AB8;
+  color-scheme:dark;
+}
+.look{display:flex;flex-direction:column;gap:8px}
+.look .row{display:flex;gap:8px;align-items:center}
+.modes{display:flex;border:1px solid var(--line);border-radius:99px;overflow:hidden}
+.modes button{flex:1;min-height:32px;padding:0 8px;font-size:12px;font-weight:600;color:var(--muted)}
+.modes button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
+.look select{min-height:36px;border-radius:10px;border:1px solid var(--line);background:var(--bg);padding:0 8px;width:100%}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 var(--body);-webkit-text-size-adjust:100%}
 button,input,select,textarea{font:inherit;color:inherit}
@@ -212,11 +225,296 @@ svg .seg.pay{fill:var(--accent)}
 'use strict';
 var DAYS=['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
 var WD=['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
+/* ---------- Diller ve görünüm ---------- */
+/* Arayüz metinleri Türkçe yazılır. Başka dil seçilince ekrandaki metinler bu tablodan çevrilir. Sıra: tr, en, de, es */
+var LANGS=[['tr','Türkçe'],['en','English'],['de','Deutsch'],['es','Español']];
+var LDATA={
+  tr:{loc:'tr-TR',months:['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'],days:['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'],wd:['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'],dayFirst:false},
+  en:{loc:'en-GB',months:['January','February','March','April','May','June','July','August','September','October','November','December'],days:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],wd:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],dayFirst:true},
+  de:{loc:'de-DE',months:['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'],days:['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'],wd:['Mo','Di','Mi','Do','Fr','Sa','So'],dayFirst:true},
+  es:{loc:'es-ES',months:['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'],days:['domingo','lunes','martes','miércoles','jueves','viernes','sábado'],wd:['lun','mar','mié','jue','vie','sáb','dom'],dayFirst:true}
+};
+var TR_ROWS=[
+['Ders Defteri','Lesson Log','Unterrichtsbuch','Diario de clases'],
+['Özel ders ve grup takibi','Private lesson and group tracking','Einzel- und Gruppenunterricht im Blick','Seguimiento de clases particulares y grupos'],
+['Menüyü aç','Open menu','Menü öffnen','Abrir menú'],
+['Menü','Menu','Menü','Menú'],
+['Kayıt','Students','Schüler','Alumnos'],
+['Takvim','Calendar','Kalender','Calendario'],
+['Grafik','Chart','Diagramm','Gráfico'],
+['Konular','Topics','Themen','Temas'],
+['Alacaklar','Receivables','Forderungen','Por cobrar'],
+['Ödemeler','Payments','Zahlungen','Pagos'],
+['Bugün','Today','Heute','Hoy'],
+['Yarın','Tomorrow','Morgen','Mañana'],
+['Gelecek hafta','Next week','Nächste Woche','Próxima semana'],
+['Yaptım','Done','Erledigt','Hecha'],
+['Ertelendi','Postponed','Verschoben','Aplazada'],
+['Ertele','Postpone','Verschieben','Aplazar'],
+['İptal edildi. Geri almak için Planlı düğmesine dokun.','Cancelled. Tap Planned to undo.','Abgesagt. Zum Rückgängigmachen auf Geplant tippen.','Cancelada. Toca Planificada para deshacer.'],
+['iptal','cancelled','abgesagt','canceladas'],
+['İptal','Cancel','Absagen','Cancelar'],
+['Planlı','Planned','Geplant','Planificada'],
+['planlı','planned','geplant','planificadas'],
+['Yapıldı','Done','Erledigt','Hecha'],
+['yapıldı','done','erledigt','hechas'],
+['Yapılan','Done','Erledigt','Hechas'],
+['Ödendi','Paid','Bezahlt','Pagada'],
+['Ödeme alındı','Payment received','Zahlung erhalten','Pago recibido'],
+['Ödeme durumunu değiştir','Toggle payment status','Zahlungsstatus ändern','Cambiar estado de pago'],
+['Bekliyor','Pending','Offen','Pendiente'],
+['bekliyor','pending','offen','pendiente'],
+['alındı','received','erhalten','cobrado'],
+['Bekleyen ödeme yok.','No pending payments.','Keine offenen Zahlungen.','No hay pagos pendientes.'],
+['bekleyen ödeme','pending payment','offene Zahlung','pago pendiente'],
+['Bekleyen','Pending','Offen','Pendiente'],
+['Toplam alacak','Total receivable','Forderungen gesamt','Total por cobrar'],
+['yapılmış ders ödeme bekliyor','completed lessons awaiting payment','erledigte Stunden warten auf Zahlung','clases dadas pendientes de pago'],
+['Hepsi ödendi','All paid','Alle bezahlt','Todo pagado'],
+['Hepsi ödendi olarak işaretlendi','Everything marked as paid','Alles als bezahlt markiert','Todo marcado como pagado'],
+['Ödeme tarihi (ödeme alındıysa)','Payment date (if paid)','Zahlungsdatum (falls bezahlt)','Fecha de pago (si está pagada)'],
+['Ödeme alındığı tarihe göre sayılır. Ders tarihine göre kazanç için Grafik sekmesine bak.','Counted by the date the payment was received. For earnings by lesson date, see the Chart tab.','Gezählt nach Zahlungseingang. Einnahmen nach Unterrichtsdatum siehst du im Reiter Diagramm.','Se cuenta por la fecha de cobro. Para ingresos por fecha de clase, mira la pestaña Gráfico.'],
+['Bu yıl alınan ödeme yok.','No payments received this year.','In diesem Jahr keine Zahlungen erhalten.','No hay pagos recibidos este año.'],
+['Bu ay alınan ödeme yok.','No payments received this month.','In diesem Monat keine Zahlungen erhalten.','No hay pagos recibidos este mes.'],
+['Ay ay gelen ödeme','Payments by month','Zahlungen pro Monat','Pagos por mes'],
+['Ay ay kazanç','Earnings by month','Einnahmen pro Monat','Ingresos por mes'],
+['Aylar','Months','Monate','Meses'],
+['yılında tahsil edilen','collected in','eingenommen in','cobrado en'],
+['yılında aylara göre tahsil edilen ödemeler, toplam','payments collected by month in','nach Monat eingenommene Zahlungen in','pagos cobrados por mes en'],
+['yılı aylık kazanç grafiği, yıllık toplam','monthly earnings chart, yearly total','Monatseinnahmen-Diagramm, Jahressumme','gráfico de ingresos mensuales, total anual'],
+['ödemelerini Excel için dışa aktar','payments export for Excel','Zahlungen für Excel exportieren','exportar pagos para Excel'],
+['Bu ayı Excel için dışa aktar','Export this month for Excel','Diesen Monat für Excel exportieren','Exportar este mes para Excel'],
+['dışa aktarma','export','Export','exportar'],
+['Kopyala, Excel veya Google Sheets içinde A1 hücresine yapıştır. Sütunlar noktalı virgülle ayrılır.','Copy it and paste into cell A1 in Excel or Google Sheets. Columns are separated by semicolons.','Kopiere den Text und füge ihn in Excel oder Google Sheets in Zelle A1 ein. Spalten sind durch Semikolons getrennt.','Cópialo y pégalo en la celda A1 de Excel o Google Sheets. Las columnas se separan con punto y coma.'],
+['Metin seçildi, elle kopyala','Text selected, copy it manually','Text markiert, bitte manuell kopieren','Texto seleccionado, cópialo manualmente'],
+['Kopyalandı','Copied','Kopiert','Copiado'],
+['Kopyala','Copy','Kopieren','Copiar'],
+['Metin','Text','Text','Texto'],
+['ödemeleri ·','payments ·','Zahlungen ·','pagos ·'],
+['ödemeleri','payments','Zahlungen','pagos'],
+['ödeme','payment','Zahlung','pago'],
+['kazanç','earnings','Einnahmen','ingresos'],
+['Kazanç','Earnings','Einnahmen','Ingresos'],
+['ay ort.','monthly avg.','Monatsschnitt','media mensual'],
+['en iyi','best','Bester','mejor'],
+['₺ bin','₺ thousand','₺ Tsd.','₺ mil'],
+['dolu: yapıldı, soluk: iptal','solid: done, faded: cancelled','gefüllt: erledigt, blass: abgesagt','lleno: hecha, tenue: cancelada'],
+['çerçeve: planlı','outline: planned','Rahmen: geplant','contorno: planificada'],
+['Eğitmen Eğitimi','Instructor Training','Ausbilderschulung','Formación de instructores'],
+['Ekstra Dersler','Extra Lessons','Zusatzstunden','Clases extra'],
+['Ekstra ders ekle','Add extra lesson','Zusatzstunde hinzufügen','Añadir clase extra'],
+['Bu güne ekstra ders ekle','Add an extra lesson to this day','Zusatzstunde zu diesem Tag hinzufügen','Añadir una clase extra a este día'],
+['Bu gün için ders yok.','No lessons for this day.','Keine Stunden an diesem Tag.','No hay clases este día.'],
+['Bu ay yapılan ders yok.','No lessons done this month.','In diesem Monat keine Stunden gehalten.','No hay clases dadas este mes.'],
+['Sıradaki dersler','Upcoming lessons','Nächste Stunden','Próximas clases'],
+['Saat yok','No time','Keine Uhrzeit','Sin hora'],
+['Saat','Time','Uhrzeit','Hora'],
+['Önceki ay','Previous month','Vorheriger Monat','Mes anterior'],
+['Sonraki ay','Next month','Nächster Monat','Mes siguiente'],
+['Önceki yıl','Previous year','Vorheriges Jahr','Año anterior'],
+['Sonraki yıl','Next year','Nächstes Jahr','Año siguiente'],
+['Öğrenci ya da grubu bir kez kaydet. Dersler takvime kendiliğinden eklenir, sonra takvimden yaptım, ertele ya da iptal diye işaretlersin.','Save a student or group once. Lessons are added to the calendar automatically, then you mark them done, postponed or cancelled from the calendar.','Speichere Schüler oder Gruppe einmal. Die Stunden landen automatisch im Kalender, dort markierst du sie als erledigt, verschoben oder abgesagt.','Guarda un alumno o grupo una vez. Las clases se añaden solas al calendario y allí las marcas como hechas, aplazadas o canceladas.'],
+['Yeni kayıt','New student','Neuer Eintrag','Nuevo registro'],
+['Öğrenci veya grup adı','Student or group name','Name des Schülers oder der Gruppe','Nombre del alumno o grupo'],
+['Öğrenci / grup','Student / group','Schüler / Gruppe','Alumno / grupo'],
+['Önce bir ad yaz','Enter a name first','Gib zuerst einen Namen ein','Escribe primero un nombre'],
+['Bir ad yaz','Enter a name','Gib einen Namen ein','Escribe un nombre'],
+['Ad','Name','Name','Nombre'],
+['Tür','Type','Art','Tipo'],
+['Özel ders','Private lesson','Einzelstunde','Clase particular'],
+['Grup','Group','Gruppe','Grupo'],
+['Eğitim','Training','Schulung','Formación'],
+['Ekstra','Extra','Zusatz','Extra'],
+['Ders günü','Lesson day','Unterrichtstag','Día de clase'],
+['Ders saati','Lesson time','Unterrichtszeit','Hora de clase'],
+['Boş bırakırsan kayıttaki saat kullanılır.','If left empty, the time from the student record is used.','Bleibt das Feld leer, wird die Zeit aus dem Eintrag verwendet.','Si lo dejas vacío, se usa la hora del registro.'],
+['Ücret (₺)','Fee (₺)','Preis (₺)','Precio (₺)'],
+['Ders ücreti (₺)','Lesson fee (₺)','Stundenpreis (₺)','Precio por clase (₺)'],
+['Ücreti rakamla yaz','Enter the fee as a number','Gib den Preis als Zahl ein','Escribe el precio con números'],
+['Tekrar','Repeat','Wiederholung','Repetición'],
+['Her hafta','Every week','Jede Woche','Cada semana'],
+['İki haftada bir','Every other week','Alle zwei Wochen','Cada dos semanas'],
+['Tek seferlik','One-off','Einmalig','Una sola vez'],
+['Düzensiz','Irregular','Unregelmäßig','Irregular'],
+['Her','Every','Jeden','Cada'],
+['Kaç ders','Number of lessons','Anzahl Stunden','Cuántas clases'],
+['Başlangıç tarihi','Start date','Startdatum','Fecha de inicio'],
+['ders · ilk ders','lessons · first lesson','Stunden · erste Stunde','clases · primera clase'],
+['· son ders','· last lesson','· letzte Stunde','· última clase'],
+['· planlanan gelir','· planned income','· geplantes Einkommen','· ingresos previstos'],
+['Kaydet ve takvime ekle','Save and add to calendar','Speichern und zum Kalender hinzufügen','Guardar y añadir al calendario'],
+['Kayıtlı öğrenci ve gruplar ·','Registered students and groups ·','Erfasste Schüler und Gruppen ·','Alumnos y grupos registrados ·'],
+['Henüz kayıt yok. Yukarıdaki formla ilkini ekle.','No records yet. Add the first one with the form above.','Noch keine Einträge. Füge den ersten mit dem Formular oben hinzu.','Aún no hay registros. Añade el primero con el formulario de arriba.'],
+['Pasif ·','Inactive ·','Inaktiv ·','Inactivos ·'],
+['Pasif','Inactive','Inaktiv','Inactivo'],
+['Aktif','Active','Aktiv','Activo'],
+['ders kayıtlı ·','lessons recorded ·','Stunden erfasst ·','clases registradas ·'],
+['yapıldı ·','done ·','erledigt ·','hechas ·'],
+['/ ders','/ lesson','/ Stunde','/ clase'],
+['kaydını düzenle','record','bearbeiten','editar registro'],
+['✎ Düzenle','✎ Edit','✎ Bearbeiten','✎ Editar'],
+['Düzenle','Edit','Bearbeiten','Editar'],
+['Öğrenciyi düzenle','Edit student','Schüler bearbeiten','Editar alumno'],
+['Kaydı düzenle','Edit record','Eintrag bearbeiten','Editar registro'],
+['Yeni ücreti planlı derslere uygula','Apply the new fee to planned lessons','Neuen Preis auf geplante Stunden anwenden','Aplicar el nuevo precio a las clases planificadas'],
+['Kaydı ve tüm derslerini sil','Delete record and all its lessons','Eintrag und alle Stunden löschen','Eliminar registro y todas sus clases'],
+['Silmeyi onayla','Confirm deletion','Löschen bestätigen','Confirmar eliminación'],
+['Kayıt silindi','Record deleted','Eintrag gelöscht','Registro eliminado'],
+['Bu kayıt silinmiş','This record was deleted','Dieser Eintrag wurde gelöscht','Este registro fue eliminado'],
+['Silinmiş kayıt','Deleted record','Gelöschter Eintrag','Registro eliminado'],
+['Bu kayıt için henüz yapılmış ders yok.','No lessons done for this record yet.','Für diesen Eintrag gibt es noch keine erledigten Stunden.','Aún no hay clases dadas para este registro.'],
+['Dersi düzenle / taşı','Edit / move lesson','Stunde bearbeiten / verschieben','Editar / mover clase'],
+['Dersi düzenle','Edit lesson','Stunde bearbeiten','Editar clase'],
+['Dersi ertele','Postpone lesson','Stunde verschieben','Aplazar clase'],
+['Dersi sil','Delete lesson','Stunde löschen','Eliminar clase'],
+['Ders silindi','Lesson deleted','Stunde gelöscht','Clase eliminada'],
+['Ders kaydedildi','Lesson saved','Stunde gespeichert','Clase guardada'],
+['Kaydedildi','Saved','Gespeichert','Guardado'],
+['Kaydet','Save','Speichern','Guardar'],
+['Vazgeç','Cancel','Abbrechen','Cancelar'],
+['Kapat','Close','Schließen','Cerrar'],
+['Tarihi ya da saati değiştir','Change date or time','Datum oder Uhrzeit ändern','Cambiar fecha u hora'],
+['Tarih ya da saati değiştir','Change date or time','Datum oder Uhrzeit ändern','Cambiar fecha u hora'],
+['Ne zaman olacak?','When will it be?','Wann findet sie statt?','¿Cuándo será?'],
+['Yeni tarihi seç','Pick the new date','Neues Datum wählen','Elige la nueva fecha'],
+['Yeni tarih','New date','Neues Datum','Nueva fecha'],
+['Yeni saat','New time','Neue Uhrzeit','Nueva hora'],
+['Tarih','Date','Datum','Fecha'],
+['için ertelendi','postponed to','verschoben auf','aplazada para'],
+['şu an','currently','aktuell','actualmente'],
+['Öğrenci ve tarih gerekli','Student and date are required','Schüler und Datum sind erforderlich','Se requieren alumno y fecha'],
+['İşlenen konular ve yorumlar','Topics covered and comments','Behandelte Themen und Kommentare','Temas tratados y comentarios'],
+['İşlenen konu','Topic covered','Behandeltes Thema','Tema tratado'],
+['Konu ve yorum yaz','Write topic and comment','Thema und Kommentar eingeben','Escribe tema y comentario'],
+['Konu girilmedi','No topic entered','Kein Thema eingegeben','Sin tema'],
+['Konu','Topic','Thema','Tema'],
+['örn. ultrasonik sensör','e.g. ultrasonic sensor','z. B. Ultraschallsensor','p. ej. sensor ultrasónico'],
+['Yorum yok. Eklemek için dokun.','No comment. Tap to add one.','Kein Kommentar. Zum Hinzufügen tippen.','Sin comentario. Toca para añadir uno.'],
+['Yorum','Comment','Kommentar','Comentario'],
+['Ders kaydı olunca burada her öğrencinin işlenen konuları görünür.','Once lessons are recorded, each student’s covered topics show up here.','Sobald Stunden erfasst sind, erscheinen hier die behandelten Themen jedes Schülers.','Cuando haya clases registradas, aquí verás los temas tratados de cada alumno.'],
+['Ders tarihi;Öğrenci;Durum;Konu;Yorum;Ücret;Ödendi;Ödeme tarihi','Lesson date;Student;Status;Topic;Comment;Fee;Paid;Payment date','Unterrichtsdatum;Schüler;Status;Thema;Kommentar;Preis;Bezahlt;Zahlungsdatum','Fecha de clase;Alumno;Estado;Tema;Comentario;Precio;Pagada;Fecha de pago'],
+['Durum','Status','Status','Estado'],
+['Evet','Yes','Ja','Sí'],
+['Hayır','No','Nein','No'],
+['Ders','Lesson','Stunde','Clase'],
+['ders','lessons','Stunden','clases'],
+['Kayıtlar hesabında saklanıyor','Saved to your account','In deinem Konto gespeichert','Guardado en tu cuenta'],
+['Kayıtlar veritabanına yazılıyor','Saving to your database','Wird in der Datenbank gespeichert','Guardando en la base de datos'],
+['Kaydedilemedi, tekrar dene','Could not save, try again','Speichern fehlgeschlagen, bitte erneut versuchen','No se pudo guardar, inténtalo de nuevo'],
+['Önizleme: değişiklikler saklanmıyor','Preview: changes are not saved','Vorschau: Änderungen werden nicht gespeichert','Vista previa: los cambios no se guardan'],
+['Kayıt bağlantısı kurulamadı:','Could not connect to storage:','Verbindung zum Speicher fehlgeschlagen:','No se pudo conectar con el almacenamiento:'],
+['Dikkat: Kayıtlar şu an saklanmıyor, sayfa yenilenince eklediklerin kaybolur.','Warning: nothing is being saved right now. What you add will be lost when the page reloads.','Achtung: Es wird gerade nichts gespeichert. Neue Einträge gehen beim Neuladen verloren.','Atención: ahora mismo no se guarda nada. Lo que añadas se perderá al recargar la página.'],
+['Kayıt başka yerde değişmiş, yenilendi. Son işlemini tekrar yap.','The data was changed elsewhere and has been refreshed. Repeat your last action.','Die Daten wurden anderswo geändert und neu geladen. Wiederhole deine letzte Aktion.','Los datos cambiaron en otro sitio y se actualizaron. Repite tu última acción.'],
+['Oturum süresi doldu, yeniden giriş yap','Session expired, please sign in again','Sitzung abgelaufen, bitte erneut anmelden','La sesión expiró, vuelve a iniciar sesión'],
+['Yükleniyor…','Loading…','Wird geladen…','Cargando…'],
+['Sunucu','Server','Server','Servidor'],
+['Hata','Error','Fehler','Error'],
+['Çıkış yap','Sign out','Abmelden','Cerrar sesión'],
+['Giriş yap','Sign in','Anmelden','Iniciar sesión'],
+['Hesap oluşturuldu. E-postana gelen onay bağlantısına tıkla, sonra giriş yap.','Account created. Click the confirmation link in your email, then sign in.','Konto erstellt. Klicke auf den Bestätigungslink in deiner E-Mail und melde dich dann an.','Cuenta creada. Haz clic en el enlace de confirmación de tu correo y luego inicia sesión.'],
+['Hesap oluştur','Create account','Konto erstellen','Crear cuenta'],
+['Kayıtların veritabanında bu hesaba bağlı saklanır. İlk kez kullanıyorsan "Hesap oluştur"a bas.','Your records are stored in the database under this account. If this is your first time, press "Create account".','Deine Daten werden in der Datenbank unter diesem Konto gespeichert. Wenn du neu bist, tippe auf „Konto erstellen“.','Tus registros se guardan en la base de datos con esta cuenta. Si es tu primera vez, pulsa «Crear cuenta».'],
+['E-posta ve en az 8 karakterlik şifre yaz','Enter an email and a password of at least 8 characters','Gib eine E-Mail und ein Passwort mit mindestens 8 Zeichen ein','Escribe un correo y una contraseña de al menos 8 caracteres'],
+['en az 8 karakter','at least 8 characters','mindestens 8 Zeichen','al menos 8 caracteres'],
+['E-posta','Email','E-Mail','Correo electrónico'],
+['Şifre','Password','Passwort','Contraseña'],
+['Şimdilik örnek veri','Use sample data for now','Vorerst Beispieldaten','Datos de ejemplo por ahora'],
+['Görünüm','Appearance','Darstellung','Apariencia'],
+['Renk','Color','Farbe','Color'],
+['Dil','Language','Sprache','Idioma'],
+['Otomatik','Auto','Automatisch','Automático'],
+['Açık','Light','Hell','Claro'],
+['Koyu','Dark','Dunkel','Oscuro'],
+['Mavi tema','Blue theme','Blaues Design','Tema azul'],
+['Orman teması','Forest theme','Waldgrün-Design','Tema bosque'],
+['bekleyen alacak','outstanding','offen','pendiente de cobro'],
+['öğrenciye göre','by student','nach Schüler','por alumno'],
+['örn. Mert Yıldız','e.g. Mert Yıldız','z. B. Mert Yıldız','p. ej. Mert Yıldız'],
+['Eğitmen','Instructor','Ausbilder','Instructor'],
+['Öğr','Stu.','Sch.','Alu.'],
+['Telafi dersi','Make-up lesson','Nachholstunde','Clase de recuperación'],
+['Öğrenci Bir','Student One','Schüler Eins','Alumno Uno'],
+['Öğrenci İki','Student Two','Schüler Zwei','Alumno Dos'],
+['Öğrenci Üç','Student Three','Schüler Drei','Alumno Tres'],
+['Öğrenci Dört','Student Four','Schüler Vier','Alumno Cuatro'],
+['Öğrenci Beş','Student Five','Schüler Fünf','Alumno Cinco']
+];
+var prefs=(function(){
+  var o={};try{o=JSON.parse(localStorage.getItem('dd_prefs'))||{}}catch(e){}
+  if(!LDATA[o.lang]){var n=((navigator.language||'tr').slice(0,2)).toLowerCase();o.lang=LDATA[n]?n:'en'}
+  if(['auto','light','dark'].indexOf(o.mode)<0)o.mode='auto';
+  if(['mavi','orman'].indexOf(o.pal)<0)o.pal='mavi';
+  return o;
+})();
+function savePrefs(){try{localStorage.setItem('dd_prefs',JSON.stringify(prefs))}catch(e){}}
+var mq=typeof matchMedia==='function'?matchMedia('(prefers-color-scheme: dark)'):null;
+function applyLook(){
+  var m=prefs.mode==='auto'?(mq&&mq.matches?'dark':'light'):prefs.mode,r=document.documentElement;
+  r.setAttribute('data-pal',prefs.pal);r.setAttribute('data-mode',m);r.setAttribute('lang',prefs.lang);
+  var tc=document.querySelector('meta[name=theme-color]');if(tc)tc.setAttribute('content',m==='dark'?'#070B16':'#F5F7FB');
+}
+if(mq&&mq.addEventListener)mq.addEventListener('change',function(){if(prefs.mode==='auto')applyLook()});
+var trRe=null,trMap=null;
+function buildTr(){
+  trRe=null;trMap=null;
+  var k=['tr','en','de','es'].indexOf(prefs.lang);
+  if(k<=0)return;
+  trMap={};
+  TR_ROWS.forEach(function(r){trMap[r[0]]=r[k]});
+  var keys=Object.keys(trMap).sort(function(a,b){return b.length-a.length});
+  var esc2=keys.map(function(x){return x.replace(/[.*+?^${}()|[\]\\\/]/g,'\\$&')});
+  trRe=new RegExp('(^|[^\\p{L}\\p{N}])(?:'+esc2.join('|')+')(?![\\p{L}\\p{N}])','gu');
+}
+function trText(s){
+  if(!trRe||!s||!/[A-Za-zÇĞİÖŞÜçğıöşü]/.test(s))return s;
+  var t=s.trim();
+  if(trMap[t]!=null)return s.replace(t,trMap[t]);
+  return s.replace(trRe,function(m,pre){return pre+trMap[m.slice(pre.length)]});
+}
+var trBusy=false;
+function trNode(root){
+  if(!trRe||!root)return;
+  trBusy=true;
+  try{
+    var w=document.createTreeWalker(root.nodeType===1||root.nodeType===11?root:document.body,NodeFilter.SHOW_TEXT,{acceptNode:function(n){
+      var p=n.parentNode&&n.parentNode.nodeName;
+      return p==='SCRIPT'||p==='STYLE'||p==='TEXTAREA'?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT}});
+    var n,list=[];while((n=w.nextNode()))list.push(n);
+    list.forEach(function(x){var v=trText(x.nodeValue);if(v!==x.nodeValue)x.nodeValue=v});
+    var els=root.nodeType===1?[root].concat([].slice.call(root.querySelectorAll('[aria-label],[placeholder],[title]'))):[].slice.call(document.querySelectorAll('[aria-label],[placeholder],[title]'));
+    els.forEach(function(e){['aria-label','placeholder','title'].forEach(function(a){
+      var v=e.getAttribute&&e.getAttribute(a);if(v){var t=trText(v);if(t!==v)e.setAttribute(a,t)}})});
+    if(document.title&&root===document.body)document.title=trText(document.title);
+  }finally{trBusy=false}
+}
+var trObs=null;
+function startTr(){
+  buildTr();
+  document.documentElement.setAttribute('lang',prefs.lang);
+  if(!trObs&&typeof MutationObserver==='function'){
+    trObs=new MutationObserver(function(ms){
+      if(trBusy||!trRe)return;
+      ms.forEach(function(m){
+        if(m.type==='characterData'){var v=trText(m.target.nodeValue);if(v!==m.target.nodeValue){trBusy=true;m.target.nodeValue=v;trBusy=false}}
+        else m.addedNodes.forEach(function(n){if(n.nodeType===1)trNode(n);else if(n.nodeType===3){var v=trText(n.nodeValue);if(v!==n.nodeValue){trBusy=true;n.nodeValue=v;trBusy=false}}});
+      });
+    });
+    trObs.observe(document.body,{childList:true,subtree:true,characterData:true});
+  }
+}
+function applyLang(){
+  var d=LDATA[prefs.lang];
+  DAYS=d.days;MONTHS=d.months;WD=d.wd;
+  NF=new Intl.NumberFormat(d.loc,{maximumFractionDigits:0});
+  startTr();
+}
+
 var MONTHS=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 var CATS=['Özel ders','Grup','Eğitim','Ekstra'];
 var CATCLS={'Özel ders':'c1','Grup':'c2','Eğitim':'c3','Ekstra':'c4'};
 var STAT={planned:'Planlı',done:'Yapıldı',missed:'İptal'};
-var fmt=new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY',maximumFractionDigits:0});
+var NF=new Intl.NumberFormat('tr-TR',{maximumFractionDigits:0});
+var fmt={format:function(n){var x=NF.format(Math.round(n||0));return prefs.lang==='de'||prefs.lang==='es'?x+'\u00a0₺':'₺'+x}};
 var money=function(n){return fmt.format(n||0)};
 var pad=function(n){return String(n).padStart(2,'0')};
 var ds=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
@@ -227,7 +525,7 @@ var sum=function(a){return a.reduce(function(t,l){return t+l.fee},0)};
 var shiftMonth=function(key,n){var p=key.split('-').map(Number);var d=new Date(p[0],p[1]-1+n,1);return d.getFullYear()+'-'+pad(d.getMonth()+1)};
 var monthLabel=function(key){var p=key.split('-');return MONTHS[+p[1]-1]+' '+p[0]};
 var trDate=function(s){var p=s.split('-');return p[2]+'.'+p[1]+'.'+p[0]};
-var longDate=function(s){var d=parse(s);return d.getDate()+' '+MONTHS[d.getMonth()]+' '+DAYS[d.getDay()]};
+var longDate=function(s){var d=parse(s);return LDATA[prefs.lang].dayFirst?DAYS[d.getDay()]+', '+d.getDate()+' '+MONTHS[d.getMonth()]:d.getDate()+' '+MONTHS[d.getMonth()]+' '+DAYS[d.getDay()]};
 var addDays=function(s,n){var d=parse(s);d.setDate(d.getDate()+n);return ds(d)};
 function nextOnOrAfter(start,day){var d=parse(start);if(day<0)return start;while(d.getDay()!==day)d.setDate(d.getDate()+1);return ds(d)}
 function genDates(start,day,interval,count){var out=[],d=nextOnOrAfter(start,day);for(var i=0;i<count;i++){out.push(d);d=addDays(d,7*interval)}return out}
@@ -337,8 +635,10 @@ var SUPA='https://jjvjqcfvqsdmmuaesdho.supabase.co',PUB='sb_publishable_e7NKsTfl
 var sess=null,rev='',sPending=false,sSaving=false,sTimer=null,lastLoad=0;
 function sessLoad(){try{var o=JSON.parse(localStorage.getItem('dd_sess'));return o&&o.access_token?o:null}catch(e){return null}}
 function sessSave(o){o.exp=Date.now()+(o.expires_in||3600)*1000-60000;sess=o;try{localStorage.setItem('dd_sess',JSON.stringify(o))}catch(e){}}
-function cacheSave(){try{localStorage.setItem('dd_cache',JSON.stringify(state))}catch(e){}}
-function cacheLoad(){try{var s=localStorage.getItem('dd_cache');return s?JSON.parse(s):null}catch(e){return null}}
+function cacheKey(){return 'dd_cache_'+(sess&&sess.user?sess.user.id:'x')}
+function cacheSave(){try{localStorage.setItem(cacheKey(),JSON.stringify(state))}catch(e){}}
+function cacheLoad(){try{var s=localStorage.getItem(cacheKey());return s?JSON.parse(s):null}catch(e){return null}}
+function emptyState(){return {students:[],lessons:[],theme:'tablo',v:3}}
 async function aCall(path,body){
   var res=await fetch(SUPA+'/auth/v1/'+path,{method:'POST',headers:{apikey:PUB,'Content-Type':'application/json'},body:JSON.stringify(body)});
   var j={};try{j=await res.json()}catch(e){}
@@ -368,13 +668,15 @@ async function rest(method,qs,body,prefer){
 async function sLoad(){
   var rows=await rest('GET','?select=state,updated_at');
   if(rows.length){state=normalize(rows[0].state);rev=rows[0].updated_at}
-  else{rev=''}
+  else{rev='';state=emptyState()}
+  if(!state.students.length)ui.tab='reg';
   lastLoad=Date.now();ui.sync='ok';cacheSave();
 }
 async function bootSupa(){
   sess=sessLoad();
   if(!sess){backend='none';ui.sync='local';render();ui.sheet={type:'setup'};renderSheet();return}
   backend='supa';
+  state=emptyState();
   var c=cacheLoad();if(c)state=normalize(c);
   ui.sync='wait';render();
   try{await sLoad();render()}
@@ -449,9 +751,15 @@ var ICONS={
 };
 var TABS=[['reg','Kayıt','reg'],['cal','Takvim','cal'],['chart','Grafik','chart'],['topics','Konular','topics'],['money','Alacaklar','money'],['pay','Ödemeler','pay']];
 function themePicker(){
-  var t=[['tablo','Koyu tablo teması','#070B16','#1FA2F0'],['acik','Açık tema','#F5F7FB','#1478D4'],['orman','Orman teması','#F2F5F1','#0E7A5C']];
-  var cur=state.theme||'tablo';
-  return '<div class="themes" role="group" aria-label="Tema">'+t.map(function(x){return '<button data-act="theme" data-v="'+x[0]+'" aria-pressed="'+(cur===x[0])+'" aria-label="'+x[1]+'" style="background:linear-gradient(135deg,'+x[2]+' 50%,'+x[3]+' 50%)"></button>'}).join('')+'</div>';
+  var pal=[['mavi','Mavi tema','#1FA2F0'],['orman','Orman teması','#2FBF94']];
+  var md=[['auto','Otomatik'],['light','Açık'],['dark','Koyu']];
+  return '<div class="look"><div class="t2">Görünüm</div>'+
+    '<div class="row"><div class="themes" role="group" aria-label="Renk">'+pal.map(function(x){return '<button data-act="pal" data-v="'+x[0]+'" aria-pressed="'+(prefs.pal===x[0])+'" aria-label="'+x[1]+'" style="background:'+x[2]+'"></button>'}).join('')+'</div></div>'+
+    '<div class="modes" role="group" aria-label="Görünüm">'+md.map(function(x){return '<button data-act="mode" data-v="'+x[0]+'" aria-pressed="'+(prefs.mode===x[0])+'">'+x[1]+'</button>'}).join('')+'</div>'+
+    langSelect()+'</div>';
+}
+function langSelect(){
+  return '<select id="langSel" aria-label="Dil">'+LANGS.map(function(x){return '<option value="'+x[0]+'"'+(prefs.lang===x[0]?' selected':'')+'>'+x[1]+'</option>'}).join('')+'</select>';
 }
 function syncText(){
   return ui.sync==='ok'?'<span class="sync">'+(backend==='supa'?'Kayıtlar veritabanına yazılıyor':'Kayıtlar hesabında saklanıyor')+'</span>'
@@ -562,7 +870,7 @@ function chart(year,sel){
   var g='<text x="0" y="10">₺ bin</text>';
   [0,0.5,1].forEach(function(f){
     var y=T+ph-ph*f;
-    g+='<line class="grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+y+'" y2="'+y+'"/><text x="'+(L-5)+'" y="'+(y+3)+'" text-anchor="end">'+(f?(top*f/1000).toLocaleString('tr-TR',{maximumFractionDigits:1}):'0')+'</text>';
+    g+='<line class="grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+y+'" y2="'+y+'"/><text x="'+(L-5)+'" y="'+(y+3)+'" text-anchor="end">'+(f?(top*f/1000).toLocaleString(LDATA[prefs.lang].loc,{maximumFractionDigits:1}):'0')+'</text>';
   });
   keys.forEach(function(k,i){
     var x=L+i*slot+(slot-bw)/2,y=T+ph,cats=monthCats(k),isel=k===sel,segs='';
@@ -614,7 +922,7 @@ function chartPay(year,sel){
   var g='<text x="0" y="10">₺ bin</text>';
   [0,0.5,1].forEach(function(f){
     var y=T+ph-ph*f;
-    g+='<line class="grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+y+'" y2="'+y+'"/><text x="'+(L-5)+'" y="'+(y+3)+'" text-anchor="end">'+(f?(top*f/1000).toLocaleString('tr-TR',{maximumFractionDigits:1}):'0')+'</text>';
+    g+='<line class="grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+y+'" y2="'+y+'"/><text x="'+(L-5)+'" y="'+(y+3)+'" text-anchor="end">'+(f?(top*f/1000).toLocaleString(LDATA[prefs.lang].loc,{maximumFractionDigits:1}):'0')+'</text>';
   });
   keys.forEach(function(k,i){
     var x=L+i*slot+(slot-bw)/2,hh=Math.max(ph*vs[i]/top,vs[i]?2:0),y=T+ph-hh,isel=k===sel;
@@ -742,7 +1050,7 @@ function sheetSetup(){
     '<div class="field"><label for="s_mail">E-posta</label><input type="email" id="s_mail" autocomplete="username" placeholder="ornek@gmail.com"></div>'+
     '<div class="field"><label for="s_pass">Şifre</label><input type="password" id="s_pass" autocomplete="current-password" placeholder="en az 8 karakter"></div>'+
     '<div class="actions"><button class="btn ghost" data-act="signup">Hesap oluştur</button><button class="btn primary" data-act="login">Giriş yap</button></div>'+
-    '<div class="actions"><button class="btn ghost sm" data-act="skipSetup">Şimdilik örnek veri</button></div>';
+    '<div class="actions"><button class="btn ghost sm" data-act="skipSetup">Şimdilik örnek veri</button></div>'+'<div class="field">'+langSelect()+'</div>';
 }
 function sheetCsv(sh){
   var scope=sh&&sh.scope||'month';
@@ -769,7 +1077,7 @@ function renderMain(){
   dl.innerHTML=state.lessons.map(function(l){return l.topic}).filter(function(t){if(!t||seen[t])return false;seen[t]=1;return true}).map(function(t){return '<option value="'+esc(t)+'">'}).join('');
   if(ui.tab==='reg')regPreview();
 }
-function render(){document.documentElement.setAttribute('data-app-theme',state.theme||'tablo');renderSide();renderMain();renderSheet()}
+function render(){renderSide();renderMain();renderSheet()}
 
 /* ---------- Olaylar ---------- */
 function goTab(t){ui.tab=t;ui.menu=false;render();val('main').scrollTop=0}
@@ -782,7 +1090,8 @@ document.addEventListener('click',function(e){
     case 'menu':ui.menu=true;renderSide();break;
     case 'menuClose':ui.menu=false;renderSide();break;
     case 'tab':goTab(v);break;
-    case 'theme':state.theme=v;persist();render();break;
+    case 'pal':prefs.pal=v;savePrefs();applyLook();renderSide();break;
+    case 'mode':prefs.mode=v;savePrefs();applyLook();renderSide();break;
     case 'selDay':ui.sel=v;render();break;
     case 'selOpen':ui.sel=v;ui.cal=v.slice(0,7);goTab('cal');break;
     case 'calPrev':ui.cal=shiftMonth(ui.cal,-1);render();break;
@@ -807,7 +1116,7 @@ document.addEventListener('click',function(e){
       }).catch(function(err){toast(String(err&&err.message||err))});
       break;}
     case 'logout':
-      try{localStorage.removeItem('dd_sess');localStorage.removeItem('dd_cache')}catch(err){}
+      try{localStorage.removeItem('dd_sess');localStorage.removeItem(cacheKey())}catch(err){}
       location.reload();break;
     case 'postpone':ui.sheet={type:'postpone',id:id};renderSheet();break;
     case 'ppQuick':val('p_date').value=v;break;
@@ -888,6 +1197,7 @@ document.addEventListener('change',function(e){
   var t=e.target;if(!t)return;
   if(t.id==='f_sid'&&ui.sheet&&ui.sheet.type==='lesson'&&!ui.sheet.id){var s=stById(t.value);if(s)val('f_fee').value=s.fee}
   if(t.id==='k_sid'){ui.kSid=t.value;renderMain()}
+  if(t.id==='langSel'){prefs.lang=t.value;savePrefs();location.reload()}
 });
 document.addEventListener('input',function(e){
   var t=e.target;if(t&&ui.tab==='reg'&&t.id&&t.id.indexOf('g_')===0)regPreview();
@@ -896,7 +1206,9 @@ document.addEventListener('visibilitychange',function(){
   if(document.visibilityState!=='visible'||backend!=='supa'||sSaving||sPending||ui.sheet||Date.now()-lastLoad<30000)return;
   sLoad().then(function(){render()}).catch(function(){});
 });
+applyLook();applyLang();
 render();
+trNode(document.body);
 boot();
 })();
 </script>
