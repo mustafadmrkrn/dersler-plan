@@ -810,12 +810,11 @@ function viewReg(){
     '<div class="field"><label for="g_name">Öğrenci veya grup adı</label><input type="text" id="g_name" autocomplete="off" placeholder="örn. Mert Yıldız"></div>'+
     '<div class="two"><div class="field"><label for="g_cat">Tür</label><select id="g_cat">'+opts([['Özel ders','Özel ders'],['Grup','Grup'],['Eğitim','Eğitim'],['Ekstra','Ekstra']],'Özel ders')+'</select></div>'+
     '<div class="field"><label for="g_fee">Ders ücreti (₺)</label><input type="number" inputmode="numeric" id="g_fee" min="0" value="500"></div></div>'+
-    '<div class="two"><div class="field"><label for="g_day">Ders günü</label><select id="g_day">'+opts([1,2,3,4,5,6,0].map(function(d){return [d,DAYS[d]]}),6)+'</select></div>'+
+    '<div class="two"><div class="field"><label for="g_start">Ders günü</label><input type="date" id="g_start" value="'+ds(new Date())+'"></div>'+
     '<div class="field"><label for="g_time">Başlangıç saati</label>'+tinput('g_time','20:00')+'</div></div>'+
-    '<div class="two"><div class="field"><label for="g_end">Bitiş saati</label>'+tinput('g_end','')+'</div><div class="field"></div></div>'+
-    '<div class="two"><div class="field"><label for="g_rep">Tekrar</label><select id="g_rep">'+opts([[1,'Her hafta'],[2,'İki haftada bir'],[0,'Tek seferlik']],1)+'</select></div>'+
+    '<div class="two"><div class="field"><label for="g_end">Bitiş saati</label>'+tinput('g_end','')+'</div>'+
     '<div class="field"><label for="g_count">Kaç ders</label><input type="number" inputmode="numeric" id="g_count" min="1" max="60" value="12"></div></div>'+
-    '<div class="field"><label for="g_start">Başlangıç tarihi</label><input type="date" id="g_start" value="'+ds(new Date())+'"></div>'+
+    '<div class="field"><label for="g_rep">Tekrar</label><select id="g_rep">'+opts([[1,'Her hafta'],[2,'İki haftada bir'],[0,'Tek seferlik']],1)+'</select></div>'+
     '<div class="preview" id="regPreview"></div>'+
     '<button class="btn primary block" data-act="saveReg">Kaydet ve takvime ekle</button></div>'+
     '<section class="stack"><h2>Kayıtlı öğrenci ve gruplar · '+act.length+'</h2>'+(act.length?act.map(studentCard).join(''):'<p class="empty">Henüz kayıt yok. Yukarıdaki formla ilkini ekle.</p>')+'</section>';
@@ -824,9 +823,10 @@ function viewReg(){
 }
 function regPreview(){
   var el=val('regPreview');if(!el)return;
-  var day=parseInt(val('g_day').value,10),rep=parseInt(val('g_rep').value,10),fee=parseInt(val('g_fee').value,10)||0;
+  var rep=parseInt(val('g_rep').value,10),fee=parseInt(val('g_fee').value,10)||0;
   var count=rep===0?1:Math.min(60,Math.max(1,parseInt(val('g_count').value,10)||1));
   var start=val('g_start').value||ds(new Date());
+  var day=parse(start).getDay();
   var dates=genDates(start,day,rep===0?1:rep,count);
   el.textContent=count+' ders · ilk ders '+longDate(dates[0])+(count>1?' · son ders '+longDate(dates[count-1]):'')+' · planlanan gelir '+money(fee*count);
 }
@@ -1161,7 +1161,7 @@ document.addEventListener('click',function(e){
       var name=val('g_name').value.trim(),fee=parseInt(val('g_fee').value,10);
       if(!name){toast('Önce bir ad yaz');val('g_name').focus();break}
       if(isNaN(fee)||fee<0){toast('Ücreti rakamla yaz');break}
-      var rep=parseInt(val('g_rep').value,10),day=parseInt(val('g_day').value,10);
+      var rep=parseInt(val('g_rep').value,10),day=parse(val('g_start').value||ds(new Date())).getDay();
       var count=rep===0?1:Math.min(60,Math.max(1,parseInt(val('g_count').value,10)||1));
       var st={id:uid(),name:name,day:day,time:val('g_time').value,end:val('g_end').value,fee:fee,cat:val('g_cat').value,interval:rep,active:true};
       var dates=genDates(val('g_start').value||ds(new Date()),day,rep===0?1:rep,count);
