@@ -424,6 +424,16 @@ var TR_ROWS=[
 ['Çıkış yap','Sign out','Abmelden','Cerrar sesión'],
 ['Giriş yap','Sign in','Anmelden','Iniciar sesión'],
 ['Hesap oluşturuldu. E-postana gelen onay bağlantısına tıkla, sonra giriş yap.','Account created. Click the confirmation link in your email, then sign in.','Konto erstellt. Klicke auf den Bestätigungslink in deiner E-Mail und melde dich dann an.','Cuenta creada. Haz clic en el enlace de confirmación de tu correo y luego inicia sesión.'],
+['Hesap oluşturuluyor…','Creating account…','Konto wird erstellt…','Creando cuenta…'],
+['Giriş yapılıyor…','Signing in…','Anmeldung läuft…','Iniciando sesión…'],
+['Bu e-posta zaten kayıtlı. Giriş yap.','This email is already registered. Sign in.','Diese E-Mail ist bereits registriert. Bitte anmelden.','Este correo ya está registrado. Inicia sesión.'],
+['E-posta ya da şifre yanlış.','Wrong email or password.','E-Mail oder Passwort falsch.','Correo o contraseña incorrectos.'],
+['E-postanı henüz onaylamadın. Gelen kutundaki bağlantıya tıkla.','You have not confirmed your email yet. Click the link in your inbox.','Du hast deine E-Mail noch nicht bestätigt. Klicke auf den Link in deinem Posteingang.','Aún no has confirmado tu correo. Haz clic en el enlace de tu bandeja de entrada.'],
+['Çok fazla deneme yapıldı. Biraz bekleyip tekrar dene.','Too many attempts. Wait a bit and try again.','Zu viele Versuche. Bitte kurz warten und erneut versuchen.','Demasiados intentos. Espera un poco e inténtalo de nuevo.'],
+['Şifre en az 8 karakter olmalı.','The password must be at least 8 characters.','Das Passwort muss mindestens 8 Zeichen haben.','La contraseña debe tener al menos 8 caracteres.'],
+['Geçerli bir e-posta yaz.','Enter a valid email.','Gib eine gültige E-Mail ein.','Escribe un correo válido.'],
+['Yeni hesap açma şu an kapalı.','Creating new accounts is currently disabled.','Neue Konten können derzeit nicht erstellt werden.','La creación de cuentas está desactivada ahora mismo.'],
+['Bağlantı kurulamadı. İnternetini kontrol et.','Could not connect. Check your internet.','Verbindung fehlgeschlagen. Prüfe dein Internet.','No se pudo conectar. Revisa tu internet.'],
 ['Hesap oluştur','Create account','Konto erstellen','Crear cuenta'],
 ['Kayıtların veritabanında bu hesaba bağlı saklanır. İlk kez kullanıyorsan "Hesap oluştur"a bas.','Your records are stored in the database under this account. If this is your first time, press "Create account".','Deine Daten werden in der Datenbank unter diesem Konto gespeichert. Wenn du neu bist, tippe auf „Konto erstellen“.','Tus registros se guardan en la base de datos con esta cuenta. Si es tu primera vez, pulsa «Crear cuenta».'],
 ['E-posta ve en az 8 karakterlik şifre yaz','Enter an email and a password of at least 8 characters','Gib eine E-Mail und ein Passwort mit mindestens 8 Zeichen ein','Escribe un correo y una contraseña de al menos 8 caracteres'],
@@ -666,6 +676,18 @@ async function aCall(path,body){
   if(!res.ok)throw new Error(j.msg||j.error_description||j.error||('Hata '+res.status));
   return j;
 }
+function authMsg(err){
+  var m=String(err&&err.message||err),l=m.toLowerCase();
+  if(l.indexOf('already registered')>=0||l.indexOf('already been registered')>=0)return 'Bu e-posta zaten kayıtlı. Giriş yap.';
+  if(l.indexOf('invalid login')>=0)return 'E-posta ya da şifre yanlış.';
+  if(l.indexOf('not confirmed')>=0)return 'E-postanı henüz onaylamadın. Gelen kutundaki bağlantıya tıkla.';
+  if(l.indexOf('rate limit')>=0||l.indexOf('too many')>=0)return 'Çok fazla deneme yapıldı. Biraz bekleyip tekrar dene.';
+  if(l.indexOf('password')>=0&&l.indexOf('characters')>=0)return 'Şifre en az 8 karakter olmalı.';
+  if(l.indexOf('valid email')>=0||l.indexOf('invalid email')>=0)return 'Geçerli bir e-posta yaz.';
+  if(l.indexOf('signups not allowed')>=0||l.indexOf('signup is disabled')>=0)return 'Yeni hesap açma şu an kapalı.';
+  if(l.indexOf('failed to fetch')>=0||l.indexOf('network')>=0)return 'Bağlantı kurulamadı. İnternetini kontrol et.';
+  return m;
+}
 async function getToken(){
   if(!sess)throw new Error('auth');
   if(Date.now()>sess.exp){
@@ -797,7 +819,7 @@ function renderSide(){
   s.className=ui.menu?'open':'';
   s.innerHTML='<div class="brand">Ders Defteri<small>Özel ders ve grup takibi</small></div><nav class="menu">'+
     TABS.map(function(t){return '<button data-act="tab" data-v="'+t[0]+'"'+(ui.tab===t[0]?' aria-current="page"':'')+'>'+ICONS[t[2]]+t[1]+(t[0]==='money'&&un?'<span class="badge num">'+un+'</span>':'')+'</button>'}).join('')+
-    '</nav><div class="side-foot"><span id="syncSlot">'+syncText()+'</span>'+(inClaude?'':(backend==='supa'?'<button class="chip edit" data-act="logout">Çıkış yap</button>':'<button class="chip edit" data-act="setup">Giriş yap</button>'))+themePicker()+'</div>';
+    '</nav><div class="side-foot"><span id="syncSlot">'+syncText()+'</span>'+(inClaude?'':(backend==='supa'?(sess&&sess.user&&sess.user.email?'<span class="t2" style="overflow-wrap:anywhere">'+esc(sess.user.email)+'</span>':'')+'<button class="chip edit" data-act="logout">Çıkış yap</button>':'<button class="chip edit" data-act="setup">Giriş yap</button>'))+themePicker()+'</div>';
   document.getElementById('dscrim').className='drawer-scrim'+(ui.menu?' on':'');
   document.getElementById('ttl').textContent=(TABS.find(function(t){return t[0]===ui.tab})||[0,''])[1];
 }
@@ -1154,10 +1176,11 @@ document.addEventListener('click',function(e){
       var em=val('s_mail').value.trim(),pw=val('s_pass').value;
       if(!em||pw.length<8){toast('E-posta ve en az 8 karakterlik şifre yaz');break}
       var isUp=act==='signup';
+      toast(isUp?'Hesap oluşturuluyor…':'Giriş yapılıyor…');
       aCall(isUp?'signup':'token?grant_type=password',{email:em,password:pw}).then(function(j){
         if(!j.access_token){toast('Hesap oluşturuldu. E-postana gelen onay bağlantısına tıkla, sonra giriş yap.');return}
         sessSave(j);ui.sheet=null;renderSheet();bootSupa();
-      }).catch(function(err){toast(String(err&&err.message||err))});
+      }).catch(function(err){toast(authMsg(err))});
       break;}
     case 'logout':
       try{localStorage.removeItem('dd_sess');localStorage.removeItem(cacheKey())}catch(err){}
